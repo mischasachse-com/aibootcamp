@@ -1,16 +1,19 @@
 # members.csv — squadron member roster for role assignments.
 # Copy to members.csv (gitignored — contains participant e-mail addresses).
 #
-# Format: team,identity   (one member per line; `#` = comment; header optional)
-#   team     — squadron number, 1-99 (leading zero optional)
-#   identity — Entra e-mail (UPN) OR a raw object ID (GUID).
-#              E-mail resolution needs directory-read rights on the tenant.
-#              Without them, have each member run:
-#                  az ad signed-in-user show --query id -o tsv
-#              and paste the GUID here instead.
+# Format: team,identity[,type]   (one member per line; `#` = comment;
+# header optional; inline comments are stripped)
+#   team     — squadron number, 1-99 (leading zero optional: 8 and 08 both work)
+#   identity — Entra e-mail (UPN) OR a raw object ID (GUID). E-mail resolution
+#              needs directory-read rights on the tenant; without them, have
+#              each member run `az ad signed-in-user show --query id -o tsv`
+#              and paste the GUID.
+#   type     — optional; User | Group | ServicePrincipal (default User).
+#              Non-User principals must be given as raw object IDs.
 #
-# team,identity
+# team,identity,type
 1,alex.squadron01@example.com
 1,blair.squadron01@example.com
 2,charlie.squadron02@example.com
-2,9f6c1d2e-aaaa-bbbb-cccc-1234567890ab   # raw object ID also works
+# Raw object IDs also work — and are required for groups/service principals:
+2,9f6c1d2e-aaaa-bbbb-cccc-1234567890ab,Group

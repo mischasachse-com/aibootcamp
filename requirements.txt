@@ -13,8 +13,8 @@
 # =============================================================================
 
 # --- Azure SDK (runtime) ------------------------------------------------------
-azure-identity==1.25.3          # DefaultAzureCredential — keyless auth everywhere
-azure-ai-projects==2.7.0        # AIProjectClient + get_openai_client() (Foundry)
+azure-identity==1.25.3          # DefaultAzureCredential + get_bearer_token_provider — keyless auth everywhere
+azure-ai-projects==2.7.0        # Foundry project SDK (kept for exploration; chat/embeddings use AZURE_OPENAI_ENDPOINT via common/openai_client.py)
 azure-search-documents==12.0.0  # SearchIndexClient / SearchClient / VectorizedQuery
 azure-ai-agents==1.1.0          # Day 3 stretch: Foundry Agent Service (AgentsClient)
 azure-storage-blob==12.30.3     # storage helpers used by reset/verification paths

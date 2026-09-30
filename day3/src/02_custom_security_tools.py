@@ -30,6 +30,7 @@ This module is imported by 01_flight_director_agent.py via importlib
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import re
@@ -131,14 +132,11 @@ def search_flight_manuals(query: str, top: int = 4) -> dict:
         from azure.identity import DefaultAzureCredential
         from azure.search.documents import SearchClient
         from azure.search.documents.models import VectorizedQuery
-        from azure.ai.projects import AIProjectClient
+        from common.openai_client import get_openai_client
 
         credential = DefaultAzureCredential()
-        with AIProjectClient(
-            endpoint=_env("FOUNDRY_PROJECT_ENDPOINT"), credential=credential
-        ) as project:
-            client = project.get_openai_client()
-        vec = client.embeddings.create(
+        # AZURE_OPENAI_ENDPOINT client — no context-manager lifetime trap here.
+        vec = get_openai_client(credential).embeddings.create(
             model=_env("EMBEDDING_MODEL_DEPLOYMENT"), input=query
         ).data[0].embedding
 
@@ -181,43 +179,72 @@ def list_squadron_resources() -> dict:
 # NOTE: even in enabled mode these stay minimal, scoped, reversible actions —
 # tagging a resource or creating a restrictive NSG rule — never destructive.
 
+def _valid_ipv4(ip: str) -> bool:
+    try:
+        ipaddress.IPv4Address(ip)
+        return True
+    except ipaddress.AddressValueError:
+        return False
+
+
+def _next_nsg_priority(nsg: str, rg: str) -> int:
+    """Lowest free inbound priority in 100-4000; falls back to 100 on failure."""
+    proc = subprocess.run(
+        ["az", "network", "nsg", "rule", "list", "-g", rg, "--nsg-name", nsg,
+         "--query", "[].priority", "-o", "json"],
+        capture_output=True, text=True, timeout=60,
+    )
+    used = set()
+    if proc.returncode == 0:
+        try:
+            used = {int(p) for p in json.loads(proc.stdout or "[]")}
+        except (ValueError, TypeError):
+            pass
+    for prio in range(100, 4000):
+        if prio not in used:
+            return prio
+    return 100
+
+
 def block_ip_address(ip: str, reason: str) -> dict:
     """Simulated by default: propose an NSG deny rule for a hostile source IP."""
     action = f"block inbound traffic from {ip} (reason: {reason})"
 
+    if not _valid_ipv4(ip):
+        return {"status": "REFUSED", "action": action,
+                "detail": "argument is not a valid IPv4 address"}
     if not _writes_enabled():
         return {"status": "SIMULATED", "action": action,
                 "detail": "write tools disabled (ENABLE_WRITE_TOOLS=false). "
                           "No change was made to any Azure resource."}
     _rg()
-    if not re.match(r"^\d{1,3}(\.\d{1,3}){3}$", ip):
-        return {"status": "REFUSED", "action": action,
-                "detail": "argument is not a valid IPv4 address"}
     if not _human_approval(action):
         return {"status": "DENIED_BY_OPERATOR", "action": action}
 
     nsg = _env("LAB_NSG_NAME")
     if not nsg:
         cmd = (f"az network nsg rule create -g {_rg()} --nsg-name <nsg> "
-               f"--name Deny-{ip.replace('.', '-')} --priority 100 "
+               f"--name Deny-{ip.replace('.', '-')} --priority <lowest-free> "
                f"--source-address-prefixes {ip} --destination-port-ranges '*' "
                "--access Deny --direction Inbound --protocol '*'")
         return {"status": "HANDOFF", "action": action,
                 "detail": "no lab NSG provisioned (LAB_NSG_NAME unset). "
-                          "Emitted for MANUAL execution — an agent never runs this itself:",
+                          "Emitted for MANUAL execution — an agent never runs this itself. "
+                          "Pick the lowest free priority in 100-4000.",
                 "command": cmd}
 
+    priority = _next_nsg_priority(nsg, _rg())
     proc = subprocess.run(
         ["az", "network", "nsg", "rule", "create", "-g", _rg(),
          "--nsg-name", nsg, "--name", f"Deny-{ip.replace('.', '-')}",
-         "--priority", "100", "--source-address-prefixes", ip,
+         "--priority", str(priority), "--source-address-prefixes", ip,
          "--destination-port-ranges", "*", "--access", "Deny",
          "--direction", "Inbound", "--protocol", "*", "-o", "json"],
         capture_output=True, text=True, timeout=120,
     )
     if proc.returncode != 0:
         return {"status": "FAILED", "action": action, "error": proc.stderr.strip()}
-    return {"status": "EXECUTED", "action": action, "nsg": nsg}
+    return {"status": "EXECUTED", "action": action, "nsg": nsg, "priority": priority}
 
 
 def isolate_node(resource_name: str, reason: str) -> dict:
@@ -336,7 +363,7 @@ TOOL_SCHEMAS = [
         "function": {
             "name": "isolate_node",
             "description": (
-                "WRITE ACTION — quarantine a squadron resource by tagging it isolated=true. "
+                "WRITE ACTION — quarantine a squadron resource by tagging it criticalOrbit=isolated. "
                 "Simulated unless ENABLE_WRITE_TOOLS=true AND the operator approves interactively. "
                 "Resource must exist inside this squadron's own resource group."
             ),

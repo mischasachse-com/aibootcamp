@@ -5,11 +5,10 @@
     "ms-azuretools.vscode-bicep",
     "editorconfig.editorconfig",
     "timonwong.shellcheck",
-    "github.vscode-github-actions",
     "redhat.vscode-yaml",
+    "ms-azure-devops.azure-pipelines",
     "davidanson.vscode-markdownlint",
-    "ms-vscode-remote.remote-containers",
-    "ms-vscode.azure-account"
+    "ms-vscode-remote.remote-containers"
   ],
   "unwantedRecommendations": []
 }

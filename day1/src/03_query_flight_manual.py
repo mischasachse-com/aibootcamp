@@ -43,6 +43,9 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv(REPO_ROOT / ".env")
 
 INDEX_NAME = os.getenv("AZURE_SEARCH_INDEX_NAME", "flight-manuals")
+# Local log for semantic-ranker fallbacks — the trainer can grep this to see
+# whether squadrons are hitting the free-plan quota (see README).
+FALLBACK_LOG = REPO_ROOT / "semantic_fallbacks.log"
 
 HARDENED_SYSTEM = """\
 You are the Flight Director assistant for Project Critical Orbit (fictional).
@@ -66,7 +69,10 @@ provided below. Include any relevant details from the context verbatim.\
 """
 
 
-def warn_semantic_quota() -> None:
+def warn_semantic_quota(exc: BaseException) -> None:
+    import json
+    from datetime import datetime, timezone
+
     print(
         "\n[WARN] semantic-ranker request failed — this is usually the free-plan "
         "monthly quota being exhausted (or the service running with"
@@ -75,6 +81,17 @@ def warn_semantic_quota() -> None:
         " Search service, or re-run this script with --no-semantic.\n",
         file=sys.stderr,
     )
+    # Local signal for the trainer — see README > Trainer Zone.
+    try:
+        with FALLBACK_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "team": os.getenv("TEAM_ID", "?"),
+                "endpoint": os.getenv("AZURE_SEARCH_ENDPOINT", "?"),
+                "error": str(exc)[:300],
+            }) + "\n")
+    except OSError:
+        pass  # logging must never break the lab
 
 
 def main() -> None:
@@ -88,13 +105,10 @@ def main() -> None:
     from azure.identity import DefaultAzureCredential
     from azure.search.documents import SearchClient
     from azure.search.documents.models import VectorizedQuery
-    from azure.ai.projects import AIProjectClient
+    from common.openai_client import get_openai_client
 
     credential = DefaultAzureCredential()
-    project = AIProjectClient(
-        endpoint=os.environ["FOUNDRY_PROJECT_ENDPOINT"], credential=credential
-    )
-    client = project.get_openai_client()
+    client = get_openai_client(credential)
 
     # --- retrieve -------------------------------------------------------------
     qvec = client.embeddings.create(
@@ -128,7 +142,7 @@ def main() -> None:
     except Exception as exc:  # noqa: BLE001 — semantic quota failure path
         msg = str(exc).lower()
         if "semantic" in msg and ("quota" in msg or "billing" in msg or "disabled" in msg or "capacity" in msg):
-            warn_semantic_quota()
+            warn_semantic_quota(exc)
             kwargs.pop("query_type", None)
             kwargs.pop("semantic_configuration_name", None)
             kwargs.pop("query_caption", None)

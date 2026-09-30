@@ -99,7 +99,8 @@ Open `generated/nsg_remediation.bicep` and review against the original export:
 
 - Does it remove `AllowAllInbound` entirely?
 - Does it scope sources to `10.42.x.0/24` / `203.0.113.64/28` (fictional ranges)?
-- Does it keep `DenyAllInbound` semantics and a sane priority order?
+- Does it add an **explicit** inbound deny-all catch-all (the export only has
+  the implicit Azure default at 65500) with a sane priority?
 - Does it accidentally weaken `DenyAllOutboundInternet`?
 
 Only after review would a snippet like this ever be merged into real IaC —

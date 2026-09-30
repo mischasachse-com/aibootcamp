@@ -35,13 +35,15 @@ under live fire (Day 3).
 | Requirement | Notes |
 |---|---|
 | Azure subscription | shared across squadrons; each squadron deploys into its own RG |
-| Python ≥ 3.10 | devcontainer uses 3.12 (azure-ai-projects 2.x requires ≥3.10) |
+| Python ≥ 3.10 | devcontainer uses 3.12 (azure-ai-projects 2.x requires ≥3.10); on Windows Git Bash `python3` may be missing or a Store stub — the scripts auto-detect `python`/`py`, but `python` must work |
 | Azure CLI + Bicep | `az login`; `az bicep install` (auto-installed by setup script) |
 | `jq`, `git`, `bash` | Git Bash/WSL/devcontainer on Windows |
-| Per-RG `Contributor` | assigned by the trainer/subscription admin **before** the event |
+| Per-RG `Contributor` **+ six data-plane roles** | both assigned by the trainer/subscription admin **before** the event — see Trainer Zone. `Contributor` alone is NOT sufficient to self-assign RBAC. |
 
 Optional but recommended: the **devcontainer** (`.devcontainer/`) ships all of
-the above pre-installed.
+the above pre-installed. It is used **locally** via the VS Code Dev Containers
+extension (`ms-vscode-remote.remote-containers`) — Docker Desktop required;
+there is no cloud-hosted Codespaces-style flow.
 
 ## Required tooling by editor (universal)
 
@@ -51,7 +53,7 @@ the above pre-installed.
 | Bicep | `ms-azuretools.vscode-bicep` | Bicep language server |
 | EditorConfig | `editorconfig.editorconfig` | built into most editors via `.editorconfig` |
 | Shell lint | `timonwong.shellcheck` | `shellcheck` CLI |
-| GitHub Actions / YAML | `github.vscode-github-actions`, `redhat.vscode-yaml` | any YAML-aware editor |
+| Azure Pipelines / YAML | `ms-azure-devops.azure-pipelines`, `redhat.vscode-yaml` | any YAML-aware editor |
 | Devcontainer | `ms-vscode-remote.remote-containers` | DevPod / `devcontainer` CLI |
 
 `.vscode/extensions.json` prompts VS Code–family editors automatically; the
@@ -60,7 +62,8 @@ same list is baked into `devcontainer.json`. Everyone else: use this table.
 ## Squadron Quickstart
 
 ```bash
-# 1. authenticate (your account must have Contributor on YOUR squadron RG)
+# 1. authenticate (your account needs Contributor + the trainer-assigned
+#    data-plane roles on YOUR squadron RG)
 az login                      # add --tenant <id> if you belong to several
 
 # 2. deploy your squadron's isolated stack + write .env
@@ -92,15 +95,17 @@ substitute for the live troubleshooting channel.
 ## Repository Layout
 
 ```
-data/          fictional scenario assets (manuals, blackbox, incidents, PNG)
-day1/          infra/main.bicep + lab1 scripts + guide
-day2/          blackbox forensics + multimodal + remediation lab
-day3/          agent loop + gated security tools + incident simulator
-scripts/       PARTICIPANT-SAFE scripts only (setup-squadron, reset-data)
-trainer/       TRAINER-ONLY tooling (preflight, teardown, member roster)
-tests/         offline pytest suite — no Azure required
-.devcontainer/ reproducible environment (Python, az CLI, Bicep, jq, shellcheck)
-.github/       lint-and-validate CI (offline checks only — never deploys)
+data/               fictional scenario assets (manuals, blackbox, incidents, PNG)
+day1/               infra/main.bicep + lab1 scripts + guide
+day2/               blackbox forensics + multimodal + remediation lab
+day3/               agent loop + gated security tools + incident simulator
+common/             shared Python helpers (OpenAI client factory)
+scripts/            PARTICIPANT-SAFE scripts only (setup-squadron, reset-data)
+scripts/lib/        shared shell helpers (common.sh — sourced, tested offline)
+trainer/            TRAINER-ONLY tooling (preflight, teardown, RBAC assignment, roster)
+tests/              offline pytest suite — no Azure required
+.devcontainer/      reproducible environment (Python, az CLI, Bicep, jq, shellcheck)
+azure-pipelines.yml Azure Pipelines CI (offline checks only — never deploys)
 ```
 
 ## Trainer Zone (administration)
@@ -124,20 +129,38 @@ resolution), and prints a **data-driven ranked region recommendation** —
 requests; a shared Search service is *not* an acceptable fallback as it
 breaks squadron isolation).
 
-**Per-squadron RBAC**: participants need `Contributor` on **their own**
-`rg-corbit-sq<NN>` only. Assign it yourself (subscription admin) before the
-event, e.g.:
+**Per-squadron RBAC** — participants get TWO layers on their own
+`rg-corbit-sq<NN>`, both pre-assigned by you (subscription admin). Do not
+tell participants Contributor is enough:
+
+1. **Management plane**: `Contributor` on the RG — required for
+   `az deployment group create` inside it.
+2. **Data plane**: the six lab roles (`Cognitive Services OpenAI User`,
+   `Cognitive Services User`, `Search Service Contributor`,
+   `Search Index Data Contributor`, `Storage Blob Data Contributor`,
+   `Key Vault Secrets Officer`).
+
+Participants CANNOT self-assign: `Contributor` lacks
+`Microsoft.Authorization/roleAssignments/write`, which is why the Bicep
+template ships with `assignDataPlaneRoles=false`. Assign both layers
+yourself before the event:
 
 ```bash
+# management plane (once per RG per member)
 az group create -n rg-corbit-sq07 -l swedencentral --tags bootcamp=critical-orbit squadron=07
 az role assignment create --assignee <user-object-id-or-email> \
     --role Contributor --scope /subscriptions/<sub>/resourceGroups/rg-corbit-sq07
+
+# data plane — all six roles at RG scope, driven by the roster CSV
+./trainer/assign-squadron-access.sh --all-teams --members-file members.csv --dry-run
+./trainer/assign-squadron-access.sh --all-teams --members-file members.csv --yes
 ```
 
-Then participants run `setup-squadron.sh` themselves (it is idempotent about
-the RG). Squadron members get data-plane roles automatically when the
-deployer passes `--members-file members.csv` (`team,email` rows — see
-`trainer/members.csv.example`) or `--member-object-ids`.
+`members.csv` rows are `team,identity[,type]` (identity = Entra e-mail or raw
+object ID; `type` = User|Group|ServicePrincipal — groups/SPNs need object
+IDs). See `trainer/members.csv.example`. Admins who DO have
+`roleAssignments/write` can alternatively let `setup-squadron.sh
+--assign-roles` create the assignments inside the deployment itself.
 
 **Lifecycle modes** — pick one per event:
 
@@ -146,19 +169,59 @@ deployer passes `--members-file members.csv` (`team,email` rows — see
 | Ops | `setup` once → `reset-data.sh` between days | `teardown-all.sh` + `setup` daily |
 | Idle cost | Search Basic/Storage/KV accrue; models are per-token | near zero between sessions |
 | Risk | none mid-event | model capacity/provisioning may not finish before a session — **not guaranteed**; always verify with a pre-session smoke test |
+| Soft-delete | n/a | **Key Vault + AIServices stay soft-deleted** after teardown, so a redeploy with the same squadron number fails on name conflicts — run `teardown-all.sh --purge` (or pass `--name-seed` on rebuild) |
 | Cleanup | `trainer/teardown-all.sh` after Day 3 | same |
 
 Recommended: **Mode A** for the 3-day window — rebuild risk inside a timed
 lab is the bigger enemy. Either way, run `preflight-trainer.sh` days ahead
 and keep one trainer-owned spare squadron RG pre-provisioned as a fallback.
 
+**Semantic-ranker quota signal**: when a squadron hits the free-plan monthly
+quota, `day1/src/03_query_flight_manual.py` falls back to non-semantic search
+and appends a JSON line to `semantic_fallbacks.log` in the repo root. Ask
+squadrons to check (`cat semantic_fallbacks.log`) or collect the files —
+there is no central monitor.
+
 **Teardown** (interactive, name + tag double-gated, lists targets first):
 
 ```bash
 ./trainer/teardown-all.sh            # prints targets, requires typing DELETE
+./trainer/teardown-all.sh --purge    # also purge convention-matching soft-deleted
+                                     # Key Vaults + AIServices accounts (asks again)
 ./trainer/teardown-all.sh --dry-run  # list only
 ./trainer/teardown-all.sh --yes      # non-interactive trainer automation
 ```
+
+## Azure DevOps setup (one-time, trainer)
+
+The CI for this repo is **Azure Pipelines** (`azure-pipelines.yml`), hosted in
+Azure Repos — not GitHub. One-time manual prerequisites:
+
+1. **Organization + project**: if none exists, create both at
+   `dev.azure.com` (Organization settings are per-org). Create a project
+   (e.g. `critical-orbit`).
+2. **Import this repo** into Azure Repos: Repos → Files → Import, or push
+   the local repo to the new remote. All `.sh` files must keep LF endings —
+   the committed `.gitattributes` enforces this; don't strip it.
+3. **Service connection (Workload Identity)**: Project settings → Service
+   connections → New → **Azure Resource Manager** → **Workload identity
+   federation (automatic)** → name it `sc-critical-orbit` (the name is a
+   pipeline variable, changeable there), scope it to the bootcamp
+   subscription, resource group optional. No secrets are stored. The
+   pipeline's bicep job runs `az` through this connection; the federated
+   credential needs no data-plane roles — only enough to run `az` in the
+   subscription context (Reader suffices for the current pipeline).
+4. **Create the pipeline**: Pipelines → New → Azure Repos Git → select the
+   repo → the existing `azure-pipelines.yml` is picked up automatically.
+5. **PR gating is NOT in the YAML on Azure Repos** (`pr:` triggers only work
+   for GitHub-hosted code). Instead: Repos → Policies → Branch policies on
+   `main` → enable **Build validation** → select this pipeline
+   (path-triggered, automatic). Recommended alongside: minimum reviewers,
+   comment resolution, "reset votes on new commits".
+6. **Secret scanning**: available only if the org has GitHub Advanced
+   Security for Azure DevOps enabled — it is NOT on by default and is
+   license-dependent. If unavailable, the pipeline's own regex secret-scan
+   step is the only check; treat it as a floor, not a guarantee.
 
 ## Verified versions (as of 2026-09-30 — re-verify before each delivery)
 
@@ -168,16 +231,25 @@ and keep one trainer-owned spare squadron RG pre-provisioned as a fallback.
 | `Microsoft.CognitiveServices/accounts(+projects,+deployments)` | `2025-06-01` / `2025-09-01` (projects) |
 | `Microsoft.Storage/storageAccounts` | `2025-01-01` |
 | `Microsoft.KeyVault/vaults` | `2024-11-01` |
-| Chat model | `gpt-4.1` `2025-04-14`, `GlobalStandard`, 20k TPM (parameterized) |
+| Chat model | `gpt-4.1` `2025-04-14`, `GlobalStandard`, 20k TPM (parameterized) — **check the retirement date shortly before each bootcamp**; `--probe` in preflight catches an unavailable version |
 | Embedding model | `text-embedding-3-large` `1`, `GlobalStandard`, 20k TPM, 3072 dims |
 | Python pins | see `requirements.txt` (azure-ai-projects 2.7.0, azure-search-documents 12.0.0, openai 3.22.1, …) |
+| Chat/embeddings endpoint | `AZURE_OPENAI_ENDPOINT` = `https://<account>.openai.azure.com/` (Bicep output `openAiEndpoint`). The Foundry *project* endpoint serves the Agent/Responses surface only — `get_openai_client()` on it 404s on embeddings (Azure/azure-sdk-for-python#44532) |
 
 Re-verify live: `az cognitiveservices account list-models -n <acct> -g <rg>`.
+
+> ⚠️ **Not yet verified against live Azure**: the `<account>.openai.azure.com`
+> route for embeddings/chat is evidenced by SDK source + GitHub issues, not by
+> a real deployment of this template. Run ONE end-to-end test squadron
+> (`setup-squadron.sh --team 90` → `01_test_connection.py` → index → query)
+> before the bootcamp. Same caveat for the quota-unit assumption (kTPM) in
+> `preflight-trainer.sh` — eyeball the printed limit/headroom magnitudes.
 
 ## Manual steps (subscription admin)
 
 1. Register providers if needed: `az provider register -n Microsoft.CognitiveServices` (also `Microsoft.Search`, `Microsoft.Storage`, `Microsoft.KeyVault`).
-2. Grant **per-RG Contributor** to each participant (see Trainer Zone).
+2. Grant **per-RG Contributor + the six data-plane roles** to each
+   participant — use `trainer/assign-squadron-access.sh` (see Trainer Zone).
 3. If `members.csv` e-mail resolution fails (no directory-read rights), either
    request *Directory Readers* or have members self-resolve via
    `az ad signed-in-user show --query id -o tsv` and use GUIDs instead —
@@ -190,7 +262,8 @@ Re-verify live: `az cognitiveservices account list-models -n <acct> -g <rg>`.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `CredentialUnavailableError` / 401 | not logged in / wrong tenant | `az login --tenant <id>`; `az account show` |
-| 403 on AI or Search calls | missing data-plane roles | re-run setup with `--members-file`/`--member-object-ids`; check `az role assignment list` in your RG |
+| 403 on AI or Search calls | missing data-plane roles | ask the **trainer** — only they can assign (`trainer/assign-squadron-access.sh`); check `az role assignment list` on your RG |
+| name conflict on redeploy after teardown | Key Vault / AIServices still soft-deleted | trainer: `teardown-all.sh --purge`, or pass `--name-seed` |
 | `StorageAccountAlreadyTaken` | global DNS collision (hash reduces, never guarantees) | re-run `setup-squadron.sh --name-seed <rand>` |
 | `semantic ranker` errors mid-lab | free-plan monthly quota exhausted | set `semanticSearchPlan=standard` (billed) or run queries with `--no-semantic` |
 | embedding dimension error | wrong `EXPECTED_EMBEDDING_DIMS` or model | `.env` `EXPECTED_EMBEDDING_DIMS` must match the deployed model (3072 for 3-large) |
@@ -202,11 +275,28 @@ Re-verify live: `az cognitiveservices account list-models -n <acct> -g <rg>`.
 
 ```bash
 pip install -r requirements.txt
-pytest tests/ -v                 # fixture tests: parser, NSG, incidents, naming
-ruff check day1 day2 day3 tests  # lint
+pytest tests/ -v                       # fixture tests + shell-logic regression tests
+ruff check day1 day2 day3 common tests # lint
 az bicep build --file day1/infra/main.bicep   # in devcontainer/CI
-shellcheck scripts/*.sh trainer/*.sh
+shellcheck scripts/*.sh scripts/lib/*.sh trainer/*.sh
 ```
 
-CI (`.github/workflows/lint-and-validate.yml`) runs all of the above — it
-**never deploys**; deployment is always a human decision.
+CI (`azure-pipelines.yml`) runs all of the above — it **never deploys**;
+deployment is always a human decision. On Azure Repos, PR enforcement comes
+from the branch policy's build validation, not from the YAML.
+
+## Known limitations (documented, not bugs)
+
+- **Live verification pending**: `AZURE_OPENAI_ENDPOINT` chat/embedding route
+  and the preflight kTPM-unit assumption still need one real test deployment
+  (see the ⚠️ note above).
+- `ms-vscode.azure-account` is deprecated and deliberately not recommended;
+  Entra auth flows through `az login` anyway.
+- Session recordings are produced per delivery by the trainer — the repo
+  cannot guarantee per-step timestamps; treat lab-guide checkpoint blocks as
+  the reliable reference.
+- The e-mail → object-ID resolution in `members.csv` needs directory-read
+  rights; the GUID path (`az ad signed-in-user show`) is the no-rights
+  fallback — this is a tenant limitation, not a script gap.
+- `preflight-trainer.sh` needs a working `python3`/`python` for quota
+  parsing; on Windows Git Bash a Store-stub `python3` is auto-skipped.

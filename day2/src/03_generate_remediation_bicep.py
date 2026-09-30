@@ -86,13 +86,10 @@ def main() -> None:
         context = {"nsg_findings": flagged}
 
     from azure.identity import DefaultAzureCredential
-    from azure.ai.projects import AIProjectClient
+    from common.openai_client import get_openai_client
 
     credential = DefaultAzureCredential()
-    project = AIProjectClient(
-        endpoint=os.environ["FOUNDRY_PROJECT_ENDPOINT"], credential=credential
-    )
-    client = project.get_openai_client()
+    client = get_openai_client(credential)
 
     system = (
         "You are a cloud security engineer writing Azure Bicep. You produce "
@@ -100,7 +97,11 @@ def main() -> None:
         "Rules: (1) replace the flagged overly-permissive inbound Allow with "
         "explicit least-privilege rules matching the fictional ORBITNET "
         "addressing (10.42.x.0/24 enclaves; partner relay 203.0.113.64/28); "
-        "(2) keep an explicit DenyAllInbound catch-all below priority 4096; "
+        "(2) the export has NO custom inbound deny-all — it relies on the "
+        "implicit Azure default (DenyAllInbound at 65500). Once AllowAllInbound "
+        "is removed that default is technically sufficient, but for teaching "
+        "purposes add an EXPLICIT DenyAllInbound catch-all at priority 4000 "
+        "so the intent is visible in the ruleset; "
         "(3) add a comment on every rule explaining the decision; (4) output "
         "ONLY valid Bicep — no markdown fences, no commentary."
     )

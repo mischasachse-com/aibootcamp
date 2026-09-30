@@ -58,13 +58,9 @@ def run_incident(path: Path, backend: str) -> None:
         return
 
     from azure.identity import DefaultAzureCredential
-    from azure.ai.projects import AIProjectClient
+    from common.openai_client import get_openai_client
 
-    credential = DefaultAzureCredential()
-    project = AIProjectClient(
-        endpoint=os.environ["FOUNDRY_PROJECT_ENDPOINT"], credential=credential
-    )
-    client = project.get_openai_client()
+    client = get_openai_client(DefaultAzureCredential())
     print(agent_mod.run_manual(client, os.environ["CHAT_MODEL_DEPLOYMENT"], task))
 
 

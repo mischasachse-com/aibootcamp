@@ -46,12 +46,24 @@ def die(msg: str) -> NoReturn:
 
 
 def chunk_markdown(text: str, source: str) -> list[dict]:
-    """Split a manual into heading-aware chunks with a small overlap."""
+    """Split a manual into heading-aware chunks with a small overlap.
+
+    Everything before the first `##` (the H1 title and the FICTIONAL
+    TRAINING DOCUMENT disclaimer) is merged into the first chunk instead of
+    being silently dropped.
+    """
     # Split on '## ' headings first, then size-cap each section.
     sections = re.split(r"(?m)^(## .+)$", text)
+    preamble = sections[0].strip()
     parts: list[str] = []
     for i in range(1, len(sections), 2):
-        parts.append(sections[i] + sections[i + 1])
+        part = sections[i] + (sections[i + 1] if i + 1 < len(sections) else "")
+        if preamble:
+            part = preamble + "\n\n" + part
+            preamble = ""
+        parts.append(part)
+    if preamble:
+        parts.insert(0, preamble)  # document had no '##' sections
     if not parts:
         parts = [text]
 
@@ -97,7 +109,7 @@ def main() -> None:
         print("[dry-run] no Azure calls made.")
         return
 
-    for var in ("FOUNDRY_PROJECT_ENDPOINT", "AZURE_SEARCH_ENDPOINT", "EMBEDDING_MODEL_DEPLOYMENT"):
+    for var in ("AZURE_OPENAI_ENDPOINT", "AZURE_SEARCH_ENDPOINT", "EMBEDDING_MODEL_DEPLOYMENT"):
         if not os.getenv(var):
             die(f"missing .env var {var} — run scripts/setup-squadron.sh first")
 
@@ -117,18 +129,15 @@ def main() -> None:
         VectorSearch,
         VectorSearchProfile,
     )
+    from azure.core.exceptions import ResourceNotFoundError
     from azure.search.documents import SearchIndexingBufferedSender
-    from azure.ai.projects import AIProjectClient
+    from common.openai_client import get_openai_client
 
     credential = DefaultAzureCredential()
     search_endpoint = os.environ["AZURE_SEARCH_ENDPOINT"].rstrip("/")
 
     # --- measure the real embedding dimension ---------------------------------
-    # No `with` — the OpenAI client is used again later for the batch embed.
-    project = AIProjectClient(
-        endpoint=os.environ["FOUNDRY_PROJECT_ENDPOINT"], credential=credential
-    )
-    client = project.get_openai_client()
+    client = get_openai_client(credential)
     probe = client.embeddings.create(
         model=os.environ["EMBEDDING_MODEL_DEPLOYMENT"], input="dimension probe"
     )
@@ -178,13 +187,37 @@ def main() -> None:
     )
 
     with SearchIndexClient(endpoint=search_endpoint, credential=credential) as sic:
+        # Compare with any existing index BEFORE create_or_update — a dimension
+        # mismatch otherwise fails with a cryptic service error.
+        try:
+            existing = sic.get_index(INDEX_NAME)
+        except ResourceNotFoundError:
+            existing = None
+        if existing is not None:
+            old_dims = next(
+                (f.vector_search_dimensions for f in existing.fields
+                 if f.name == "content_vector"),
+                None,
+            )
+            if old_dims is not None and old_dims != dims and not args.recreate:
+                die(
+                    f"index '{INDEX_NAME}' already exists with vector "
+                    f"dimension {old_dims}, but the deployed model produces "
+                    f"{dims}-dim vectors. Either fix the model deployment or "
+                    f"re-run with --recreate to rebuild the index."
+                )
         if args.recreate:
             try:
                 sic.delete_index(INDEX_NAME)
                 print(f"[ok] dropped existing index '{INDEX_NAME}'")
-            except Exception:
-                pass
-        sic.create_or_update_index(index)
+            except ResourceNotFoundError:
+                pass  # absent is fine; every other failure (auth etc.) surfaces
+            except Exception as exc:  # noqa: BLE001
+                die(f"could not delete index '{INDEX_NAME}': {exc}")
+        try:
+            sic.create_or_update_index(index)
+        except Exception as exc:  # noqa: BLE001
+            die(f"create_or_update_index failed for '{INDEX_NAME}': {exc}")
         print(f"[ok] index '{INDEX_NAME}' ready (vector={dims}d hnsw, semantic=semantic-main)")
 
     # --- embed + upload ---------------------------------------------------------

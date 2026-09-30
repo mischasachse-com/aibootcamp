@@ -1,0 +1,113 @@
+# Project Critical Orbit — offline lint & validation pipeline (Azure DevOps).
+#
+# Deliberately contains NO deployment steps: every job validates code, IaC and
+# fixtures only. The single Azure-touching step (`az bicep build`) runs through
+# an AzureRM service connection that uses Workload Identity federation — no
+# stored secrets. Deployment is always a human decision.
+#
+# NOTE — Azure Repos has no YAML `pr:` trigger: PR validation is configured
+# via a branch policy on `main` (Build validation → this pipeline). See the
+# README > Azure DevOps setup section for the one-time manual prerequisites:
+# organization/project/repo, the Workload-Identity service connection, and
+# the recommended branch policies.
+
+trigger:
+  branches:
+    include: [main]
+
+# Pull-request gating is a branch policy, not a YAML setting, on Azure Repos.
+pr: none
+
+variables:
+  # AzureRM service connection with Workload Identity federation, scoped to
+  # the bootcamp subscription. Created once by the trainer (see README).
+  azureServiceConnection: 'sc-critical-orbit'
+
+jobs:
+  - job: python
+    displayName: 'Python (ruff, compile, pytest)'
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '3.12'
+      - task: Cache@2
+        inputs:
+          key: 'python | "$(Agent.OS)" | requirements.txt'
+          path: $(Pipeline.Workspace)/.pip-cache
+        displayName: Cache pip packages
+      - script: pip install --cache-dir $(Pipeline.Workspace)/.pip-cache -r requirements.txt
+        displayName: Install dependencies
+      - script: ruff check day1 day2 day3 common tests
+        displayName: Ruff lint
+      - script: python -m compileall -q day1 day2 day3 common tests
+        displayName: Byte-compile all sources
+      - script: pytest tests/ -v
+        displayName: Offline unit tests (no Azure needed)
+
+  - job: bicep
+    displayName: 'Bicep build (syntax + lint)'
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: $(azureServiceConnection)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -e
+            az bicep install
+            az bicep version
+            az bicep build --file day1/infra/main.bicep
+        displayName: Bicep build via Workload-Identity service connection
+
+  - job: shell
+    displayName: 'Shell (shellcheck + syntax)'
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+      - script: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+        displayName: Install shellcheck
+      - script: shellcheck -S warning scripts/*.sh scripts/lib/*.sh trainer/*.sh
+        displayName: Shellcheck all scripts
+      - script: for f in scripts/*.sh scripts/lib/*.sh trainer/*.sh; do bash -n "$f"; done
+        displayName: bash -n syntax check
+
+  - job: data_integrity
+    displayName: 'Data fixtures (JSON validity + secret scan)'
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '3.12'
+      - script: |
+          # telemetry_dump_corrupted.json is intentionally malformed — skip it.
+          for f in data/blackbox/nsg_export_ground_station.json \
+                   data/incidents/incident_001_bruteforce.json \
+                   data/incidents/incident_002_privilege_escalation.json; do
+            python -c "import json,sys; json.load(open('$f')); print('OK: $f')"
+          done
+          # The corrupted blackbox file must FAIL strict parsing (it's the lab's job to repair it)
+          if python -c "import json; json.load(open('data/blackbox/telemetry_dump_corrupted.json'))" 2>/dev/null; then
+            echo "ERROR: corrupted telemetry file parsed cleanly — fixture broken" && exit 1
+          else
+            echo "OK: corrupted telemetry is intentionally malformed"
+          fi
+        displayName: Validate JSON fixtures
+      - script: |
+          if grep -rEn 'BEGIN (RSA|OPENSSH|EC|PGP) PRIVATE KEY|AKIA[0-9A-Z]{16}|api[_-]?key[=:][^=]*[A-Za-z0-9]{20,}' \
+              --exclude-dir=.git --exclude=.env.example . ; then
+            echo "ERROR: possible secret material found" && exit 1
+          fi
+          echo "OK: no secret patterns found"
+        displayName: Secret-pattern scan (fail on real-looking secrets)
+      - script: |
+          if git ls-files | grep -E '^\.env$' ; then
+            echo "ERROR: .env is tracked in the repo" && exit 1
+          fi
+          echo "OK: .env is not tracked"
+        displayName: Ensure .env is never committed

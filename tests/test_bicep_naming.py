@@ -62,6 +62,16 @@ def test_security_posture_flags_present():
     assert "enableRbacAuthorization: true" in SRC
     assert "enableSoftDelete: true" in SRC, "soft delete must stay enabled"
     assert "disableLocalAuth: true" in SRC, "keyless/Entra-only auth is mandated"
+    assert "allowSharedKeyAccess: false" in SRC, "M3: fully keyless — no shared-key access"
+
+
+def test_role_assignments_are_opt_in():
+    """C2: participants only have Contributor — creating roleAssignments needs
+    rights they don't have, so the loop must default to OFF."""
+    assert "param assignDataPlaneRoles bool = false" in SRC
+    assert "param principals array" in SRC
+    assert "assignDataPlaneRoles ? principals" in SRC
+    assert "principalType: p.?principalType" in SRC, "M4: per-entry principalType"
 
 
 def test_required_resource_types():
@@ -79,7 +89,7 @@ def test_required_resource_types():
 
 def test_required_outputs():
     for out in ("teamId", "foundryProjectEndpoint", "foundryProjectName",
-                "searchEndpoint", "aiServicesEndpoint"):
+                "searchEndpoint", "aiServicesEndpoint", "openAiEndpoint"):
         assert f"output {out}" in SRC, f"missing output {out}"
 
 

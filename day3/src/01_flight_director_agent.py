@@ -11,11 +11,14 @@ Two backends:
                      every iteration is printed so you see exactly what the
                      agent decided and why.
 
-  --backend foundry  (STRETCH) same tools executed through the Foundry Agent
+  --backend foundry  (STRETCH) same tools driven through the Foundry Agent
                      Service via azure-ai-agents (AgentsClient + FunctionTool/
-                     ToolSet + auto function calls). Marked stretch because the
-                     managed service surface changes faster than the manual
-                     loop — treat as the "exam-mode" comparison.
+                     ToolSet + auto function calls). The service hosts the
+                     agent and run; the tool FUNCTIONS still execute locally
+                     in this process — routed through dispatch() so the audit
+                     log is identical to the manual backend. Marked stretch
+                     because the managed surface changes faster than the
+                     manual loop — treat as the "exam-mode" comparison.
 
 Usage:
     python src/01_flight_director_agent.py "We have a brute-force alert INC-2026-0001. Assess and respond."
@@ -115,12 +118,29 @@ def run_manual(client, model: str, user_text: str) -> str:
 
 
 # ---------------------------------------------------- foundry agent (stretch) --
+def _dispatch_wrapper(name: str):
+    """Wrap a tool function so Foundry auto-calls route through dispatch() —
+    keeping the audit log complete — while functools.wraps preserves the
+    signature/docstring that FunctionTool uses to generate the schema."""
+    import functools
+
+    fn = tools_mod.FUNCTIONS[name]
+
+    @functools.wraps(fn)
+    def wrapped(**kwargs):
+        return json.dumps(tools_mod.dispatch(name, kwargs))
+
+    return wrapped
+
+
 def run_foundry(model: str, user_text: str) -> str:
     """
     STRETCH backend — Foundry Agent Service (azure-ai-agents 1.x).
 
-    Same tool functions are registered via FunctionTool/ToolSet and the service
-    executes function calls server-side via auto function calls. If the managed
+    The managed service hosts the agent/threads/runs, but note the tool
+    functions still execute LOCALLY: `enable_auto_function_calls` makes the
+    SDK call them on this machine inside `create_and_process`. Each call is
+    routed through dispatch() so the audit log stays complete. If the managed
     surface has drifted, the manual backend remains the canonical lab path.
     """
     try:
@@ -133,7 +153,9 @@ def run_foundry(model: str, user_text: str) -> str:
     credential = DefaultAzureCredential()
     endpoint = os.environ["FOUNDRY_PROJECT_ENDPOINT"]
 
-    functions = FunctionTool(tools_mod.FUNCTIONS)  # callables -> schemas
+    # FunctionTool expects a Set[Callable] — not the FUNCTIONS dict — so we
+    # hand it dispatch() wrappers (audit logging intact, real signatures kept).
+    functions = FunctionTool({_dispatch_wrapper(n) for n in tools_mod.FUNCTIONS})
     toolset = ToolSet()
     toolset.add(functions)
 
@@ -180,13 +202,9 @@ def main() -> None:
         if args.backend == "foundry":
             return run_foundry(model, text)
         from azure.identity import DefaultAzureCredential
-        from azure.ai.projects import AIProjectClient
+        from common.openai_client import get_openai_client
 
-        credential = DefaultAzureCredential()
-        project = AIProjectClient(
-            endpoint=os.environ["FOUNDRY_PROJECT_ENDPOINT"], credential=credential
-        )
-        client = project.get_openai_client()
+        client = get_openai_client(DefaultAzureCredential())
         return run_manual(client, model, text)
 
     if args.interactive:

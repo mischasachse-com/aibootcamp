@@ -15,6 +15,8 @@
 #
 # Usage:
 #   ./reset-data.sh [--team N] [--yes] [--help]
+#
+# Exit code: 0 on success; 1 if any reset step failed (failures are LOUD).
 # =============================================================================
 set -euo pipefail
 
@@ -22,12 +24,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_FILE="${REPO_ROOT}/.env"
 
-TEAM="" ASSUME_YES=0
-die()  { echo "ERROR: $*" >&2; exit 1; }
-info() { echo "[*] $*"; }
-ok()   { echo "[+] $*"; }
+# shellcheck source=lib/common.sh
+. "${SCRIPT_DIR}/lib/common.sh"
 
-usage() { sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//; s/^#$//' | head -n -1; exit "${1:-0}"; }
+TEAM="" ASSUME_YES=0
+FAILURES=0
+
+usage() { corbit_usage "$0" "${1:-0}"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -39,15 +42,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 for tool in az jq; do
-  command -v "$tool" >/dev/null 2>&1 || die "'$tool' not found."
+  command -v "$tool" >/dev/null 2>&1 || corbit_die "'$tool' not found."
 done
-az account show >/dev/null 2>&1 || die "Not signed in. Run 'az login' first."
+az account show >/dev/null 2>&1 || corbit_die "Not signed in. Run 'az login' first."
 
 # Resolve squadron context: prefer .env, fall back to --team.
 RG_NAME="" SEARCH_NAME="" SEARCH_ENDPOINT="" SA_NAME="" CONTAINER="lab-data" INDEX_NAME="flight-manuals"
 if [[ -f "$ENV_FILE" ]]; then
+  set -a
   # shellcheck disable=SC1090
-  set -a; . "$ENV_FILE"; set +a
+  . "$ENV_FILE"
+  set +a
   RG_NAME="${AZURE_RESOURCE_GROUP:-}"
   SEARCH_ENDPOINT="${AZURE_SEARCH_ENDPOINT:-}"
   INDEX_NAME="${AZURE_SEARCH_INDEX_NAME:-flight-manuals}"
@@ -56,16 +61,15 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 if [[ -z "$RG_NAME" && -n "$TEAM" ]]; then
-  [[ "$TEAM" =~ ^[0-9]+$ ]] && (( TEAM >= 1 && TEAM <= 99 )) || die "Invalid --team '$TEAM'."
-  RG_NAME="rg-corbit-sq$(printf '%02d' "$TEAM")"
+  TEAM_ID="$(corbit_team_id "$TEAM")" || corbit_die "Invalid --team '$TEAM'."
+  RG_NAME="rg-corbit-sq${TEAM_ID}"
 fi
-[[ -n "$RG_NAME" ]] || die "No .env found and no --team given. Run setup-squadron.sh first or pass --team N."
+[[ -n "$RG_NAME" ]] || corbit_die "No .env found and no --team given. Run setup-squadron.sh first or pass --team N."
 
 # Convention check — never act on a foreign resource group.
-[[ "$RG_NAME" =~ ^rg-corbit-sq[0-9]{2}$ ]] \
-  || die "Refusing: '$RG_NAME' does not match the squadron RG convention rg-corbit-sq<NN>."
+corbit_assert_rg_convention "$RG_NAME"
 
-az group show -n "$RG_NAME" >/dev/null 2>&1 || die "Resource group '$RG_NAME' not found in this subscription."
+az group show -n "$RG_NAME" >/dev/null 2>&1 || corbit_die "Resource group '$RG_NAME' not found in this subscription."
 
 # Derive names from the RG itself when .env is missing them (no trust in .env
 # beyond identifiers — everything is re-verified against the RG anyway).
@@ -79,7 +83,7 @@ fi
 if [[ -z "$SA_NAME" ]]; then
   SA_NAME="$(az resource list -g "$RG_NAME" --resource-type Microsoft.Storage/storageAccounts --query '[0].name' -o tsv)"
 fi
-[[ -n "$SEARCH_NAME" && -n "$SA_NAME" ]] || die "Could not resolve Search/Storage resources inside $RG_NAME."
+[[ -n "$SEARCH_NAME" && -n "$SA_NAME" ]] || corbit_die "Could not resolve Search/Storage resources inside $RG_NAME."
 
 cat <<EOF
 Reset target (YOUR squadron only):
@@ -91,29 +95,48 @@ EOF
 
 if [[ "$ASSUME_YES" -ne 1 ]]; then
   read -r -p "Proceed with reset? [y/N] " ans
-  [[ "${ans,,}" == "y" || "${ans,,}" == "yes" ]] || die "Aborted."
+  [[ "${ans,,}" == "y" || "${ans,,}" == "yes" ]] || corbit_die "Aborted."
 fi
 
 # --- Delete the Search index (control-plane name verified inside our RG) ------
-info "Deleting search index '$INDEX_NAME' on '$SEARCH_NAME' (ok if absent) ..."
-az rest --method delete \
-  --url "https://${SEARCH_NAME}.search.windows.net/indexes/${INDEX_NAME}?api-version=2025-09-01" \
-  >/dev/null 2>&1 && ok "Index deleted." || warn "Index not deleted (may not exist yet — fine)."
+# NOTE: `az rest` only attaches a token when --resource is given the correct
+# audience for the data plane — for Azure AI Search that is
+# https://search.azure.com (without it the call is anonymous and fails).
+corbit_info "Deleting search index '$INDEX_NAME' on '$SEARCH_NAME' (ok if absent) ..."
+REST_ERR="$(mktemp)"
+if az rest --method delete \
+    --url "https://${SEARCH_NAME}.search.windows.net/indexes/${INDEX_NAME}?api-version=2025-09-01" \
+    --resource https://search.azure.com \
+    --output none 2>"$REST_ERR"; then
+  corbit_ok "Index deleted."
+elif grep -qiE 'not.?found|404' "$REST_ERR"; then
+  corbit_info "Index does not exist — nothing to delete (fine)."
+else
+  cat "$REST_ERR" >&2
+  corbit_warn "Index deletion FAILED — the lab index may be stale. Re-run or delete it manually."
+  FAILURES=$((FAILURES + 1))
+fi
+rm -f "$REST_ERR"
 
 # --- Empty the lab-data container ---------------------------------------------
-info "Purging blobs in ${SA_NAME}/${CONTAINER} ..."
+corbit_info "Purging blobs in ${SA_NAME}/${CONTAINER} ..."
 if az storage blob delete-batch \
     --account-name "$SA_NAME" \
     --source "$CONTAINER" \
     --auth-mode login --output none 2>/dev/null; then
-  ok "Container emptied."
+  corbit_ok "Container emptied."
 else
-  warn "Blob purge skipped (container may be empty or missing)."
+  corbit_warn "Blob purge FAILED — the container may be empty/missing, or you lack Storage Blob Data Contributor."
+  FAILURES=$((FAILURES + 1))
 fi
 
 # --- Local generated artifacts ------------------------------------------------
 rm -rf "${REPO_ROOT}/day2/generated"
 rm -f "${REPO_ROOT}/day3/audit_log.jsonl"
-ok "Local generated artifacts removed."
+corbit_ok "Local generated artifacts removed."
 
-ok "Squadron data reset complete — infrastructure untouched."
+if (( FAILURES )); then
+  corbit_warn "Squadron reset finished with $FAILURES failure(s) — see warnings above."
+  exit 1
+fi
+corbit_ok "Squadron data reset complete — infrastructure untouched."

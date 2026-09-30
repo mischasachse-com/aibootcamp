@@ -5,13 +5,16 @@
 //   Storage · Key Vault · Azure AI Services (Foundry resource) · model
 //   deployments (chat + embeddings) · Azure AI Search · Foundry project
 //
-// Authentication is keyless end-to-end: every participant listed in
-// principalObjectIds receives data-plane RBAC role assignments; no keys or
-// secrets are emitted as outputs or written anywhere.
+// Authentication is keyless end-to-end; no keys or secrets are emitted as
+// outputs or written anywhere. Data-plane RBAC role assignments are NOT
+// created by default (assignDataPlaneRoles=false): creating them requires
+// Microsoft.Authorization/roleAssignments/write, which a participant's
+// Contributor role does not include. The trainer pre-assigns the roles at
+// resource-group scope via trainer/assign-squadron-access.sh.
 //
 // Scope: resource group. Deploy with:
 //   az deployment group create -g rg-corbit-sq<NN> -f main.bicep \
-//     --parameters teamNumber=<N> principalObjectIds='["<oid>", ...]'
+//     --parameters teamNumber=<N>
 //
 // Verified against Microsoft Learn ARM/Bicep reference on 2026-09-30.
 // Re-verify API versions/model versions before each delivery — see README
@@ -32,8 +35,11 @@ param teamNumber int
 @description('Azure region for all resources. Defaults to the resource group location.')
 param location string = resourceGroup().location
 
-@description('Object IDs (Entra users) that receive data-plane RBAC roles — typically the deploying user plus all squadron members. Resolved from e-mail addresses by setup-squadron.sh.')
-param principalObjectIds array = []
+@description('When true, create the six data-plane role assignments per entry in `principals`. Default false — creating role assignments needs roleAssignments/write, which participants do not have; the trainer assigns these roles beforehand.')
+param assignDataPlaneRoles bool = false
+
+@description('Principals that receive data-plane RBAC roles when assignDataPlaneRoles=true. Each item: {objectId: string, principalType: "User"|"Group"|"ServicePrincipal"}. Built by setup-squadron.sh --assign-roles.')
+param principals array = []
 
 @description('Optional seed that perturbs the deterministic name hash. Only set this when a globally-unique name collided and you are retrying.')
 param nameSeed string = ''
@@ -116,7 +122,7 @@ resource storage 'Microsoft.Storage/storageAccounts@2025-01-01' = {
     allowBlobPublicAccess: false
     supportsHttpsTrafficOnly: true
     minimumTlsVersion: 'TLS1_2'
-    allowSharedKeyAccess: true // control-plane convenience; data plane uses Entra
+    allowSharedKeyAccess: false // keyless end-to-end; scripts use --auth-mode login
     networkAcls: {
       defaultAction: 'Allow' // lab scope: public network, Entra-gated data plane
       bypass: 'AzureServices'
@@ -224,7 +230,7 @@ resource search 'Microsoft.Search/searchServices@2025-05-01' = {
   properties: {
     replicaCount: 1
     partitionCount: 1
-    hostingMode: 'default'
+    hostingMode: 'Default'
     semanticSearch: semanticSearchPlan
     disableLocalAuth: true
     publicNetworkAccess: 'enabled'
@@ -250,77 +256,82 @@ resource project 'Microsoft.CognitiveServices/accounts/projects@2025-09-01' = {
 
 // ---------------------------------------------------------------------------
 // RBAC role assignments — one set per principal, scoped to each resource.
-// Deployer + squadron members get identical data-plane access.
+// Only created when assignDataPlaneRoles=true (trainer/admin deployments);
+// participants deploy with it off because Contributor lacks
+// roleAssignments/write. principalType comes from each entry (M4: groups and
+// service principals are supported alongside users).
 // ---------------------------------------------------------------------------
 
+var effectivePrincipals = assignDataPlaneRoles ? principals : []
+
 resource raStorageBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for pid in principalObjectIds: {
-    name: guid(storage.id, roleIds.storageBlobDataContributor, pid)
+  for p in effectivePrincipals: {
+    name: guid(storage.id, roleIds.storageBlobDataContributor, p.objectId)
     scope: storage
     properties: {
       roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleIds.storageBlobDataContributor)
-      principalId: pid
-      principalType: 'User'
+      principalId: p.objectId
+      principalType: p.?principalType ?? 'User'
     }
   }
 ]
 
 resource raKeyVault 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for pid in principalObjectIds: {
-    name: guid(keyVault.id, roleIds.keyVaultSecretsOfficer, pid)
+  for p in effectivePrincipals: {
+    name: guid(keyVault.id, roleIds.keyVaultSecretsOfficer, p.objectId)
     scope: keyVault
     properties: {
       roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleIds.keyVaultSecretsOfficer)
-      principalId: pid
-      principalType: 'User'
+      principalId: p.objectId
+      principalType: p.?principalType ?? 'User'
     }
   }
 ]
 
 resource raAiOpenAI 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for pid in principalObjectIds: {
-    name: guid(aiServices.id, roleIds.cognitiveServicesOpenAIUser, pid)
+  for p in effectivePrincipals: {
+    name: guid(aiServices.id, roleIds.cognitiveServicesOpenAIUser, p.objectId)
     scope: aiServices
     properties: {
       roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleIds.cognitiveServicesOpenAIUser)
-      principalId: pid
-      principalType: 'User'
+      principalId: p.objectId
+      principalType: p.?principalType ?? 'User'
     }
   }
 ]
 
 resource raAiUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for pid in principalObjectIds: {
-    name: guid(aiServices.id, roleIds.cognitiveServicesUser, pid)
+  for p in effectivePrincipals: {
+    name: guid(aiServices.id, roleIds.cognitiveServicesUser, p.objectId)
     scope: aiServices
     properties: {
       roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleIds.cognitiveServicesUser)
-      principalId: pid
-      principalType: 'User'
+      principalId: p.objectId
+      principalType: p.?principalType ?? 'User'
     }
   }
 ]
 
 resource raSearchService 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for pid in principalObjectIds: {
-    name: guid(search.id, roleIds.searchServiceContributor, pid)
+  for p in effectivePrincipals: {
+    name: guid(search.id, roleIds.searchServiceContributor, p.objectId)
     scope: search
     properties: {
       roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleIds.searchServiceContributor)
-      principalId: pid
-      principalType: 'User'
+      principalId: p.objectId
+      principalType: p.?principalType ?? 'User'
     }
   }
 ]
 
 resource raSearchIndex 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for pid in principalObjectIds: {
-    name: guid(search.id, roleIds.searchIndexDataContributor, pid)
+  for p in effectivePrincipals: {
+    name: guid(search.id, roleIds.searchIndexDataContributor, p.objectId)
     scope: search
     properties: {
       roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleIds.searchIndexDataContributor)
-      principalId: pid
-      principalType: 'User'
+      principalId: p.objectId
+      principalType: p.?principalType ?? 'User'
     }
   }
 ]
@@ -334,6 +345,12 @@ output resourceGroupName string = resourceGroup().name
 
 output aiServicesEndpoint string = aiServices.properties.endpoint
 output aiServicesName string = aiServices.name
+
+// OpenAI data-plane endpoint for chat/embeddings (<account>/openai/v1/).
+// The Foundry project endpoint below serves the Agent/Responses surface; the
+// project client's get_openai_client() route does not serve embeddings
+// reliably (Azure/azure-sdk-for-python#44532), so chat+embeddings go here.
+output openAiEndpoint string = 'https://${aiServicesName}.openai.azure.com/'
 
 // Foundry project endpoint (verified format; see README "Verified versions").
 output foundryProjectEndpoint string = 'https://${aiServices.name}.services.ai.azure.com/api/projects/${project.name}'

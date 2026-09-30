@@ -102,11 +102,14 @@ python src/01_flight_director_agent.py --backend foundry \
   "Alert INC-2026-0001 just fired. Assess and respond."
 ```
 
-Same tools, managed execution: `AgentsClient` + `FunctionTool`/`ToolSet` +
-auto function calls run the loop service-side inside your Foundry project.
+Same tools, managed orchestration: `AgentsClient` + `FunctionTool`/`ToolSet`
+host the agent, thread and run inside your Foundry project — but note the
+tool functions still execute **locally** in your process (auto function
+calls are an SDK-side convenience, not server-side execution), routed
+through `dispatch()` so `audit_log.jsonl` stays complete.
 Compare the trace visibility: what did you lose (and gain) versus the manual
-loop? Note for the exam: this is the managed-agent path — threads, runs, and
-server-side tool execution.
+loop? Note for the exam: this is the managed-agent path — threads, runs,
+state and evaluators live service-side; your custom tool *code* does not.
 
 ## Expected Output
 

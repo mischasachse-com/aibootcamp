@@ -7,18 +7,28 @@
 # recommendation instead of a hardcoded fallback order.
 #
 # Checks per candidate region:
-#   * Cognitive Services model-quota headroom (az cognitiveservices usage list)
-#   * AIServices kind availability (az cognitiveservices account list-skus)
+#   * AIServices kind availability (az cognitiveservices account list-skus —
+#     an empty result counts as BLOCKING, not PASS)
+#   * Cognitive Services model-quota headroom PER MODEL × team count
+#     (az cognitiveservices usage list). Units caveat: the usage API reports
+#     quota in the same units as SKU capacity — for GlobalStandard model
+#     deployments that is thousands of tokens/minute (kTPM). VERIFY the
+#     printed limit/currentValue magnitudes once against your subscription;
+#     if they look like raw tokens rather than kTPM, adjust --tpm accordingly.
 #   * Search service-count vs. squadron count (subscription-wide, approx.)
 #   * OPTIONAL --probe: deploys a throwaway AIServices account per region and
 #     lists deployable models (az cognitiveservices account list-models) — the
 #     only way to *prove* gpt-4.1 + text-embedding-3-large availability.
 #
 # Global checks:
-#   * az login, provider registration, Entra directory-read (--check-entra-email)
+#   * az login, provider registration, a working Python interpreter
+#   * Entra directory-read (--check-entra-email): BLOCKING when lookup fails
+#     for permission reasons; a plain "user not found" is a WARN only
+#     (it still proves directory-read works).
 #
-# Exit code: 0 = at least one region fully green; 1 = all regions have a
-# BLOCKING finding (fix quota/permissions BEFORE the bootcamp).
+# Exit code: 0 = at least one region has no BLOCKING finding AND no global
+# check blocked; 1 = every region blocked or a global check blocked — fix
+# quota/permissions BEFORE the bootcamp.
 #
 # Usage:
 #   ./preflight-trainer.sh                       # default regions, no probe
@@ -29,6 +39,12 @@
 # =============================================================================
 set -uo pipefail   # NOTE: no -e — we want to continue collecting findings
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# shellcheck source=../scripts/lib/common.sh
+. "${REPO_ROOT}/scripts/lib/common.sh"
+
 TEAMS=8 TPM=20 REGIONS="swedencentral westeurope northeurope eastus"
 PROBE=0 ENTRA_EMAIL=""
 MODELS="gpt-4.1 text-embedding-3-large"
@@ -38,7 +54,7 @@ WARN() { printf '  \033[33mWARN\033[0m      %s\n' "$*"; }
 PASS() { printf '  \033[32mPASS\033[0m      %s\n' "$*"; }
 info() { echo "[*] $*"; }
 
-usage() { sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//; s/^#$//' | head -n -1; exit "${1:-0}"; }
+usage() { corbit_usage "$0" "${1:-0}"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -62,6 +78,17 @@ echo "==========================================================================
 
 ANY_BLOCKING=0
 
+PYBIN="$(corbit_detect_python)" || true
+echo ""
+info "Global check: Python interpreter (needed for quota parsing)"
+if [[ -n "$PYBIN" ]]; then
+  PASS "using '$PYBIN'"
+else
+  WARN "no working python3/python found — quota checks will be skipped."
+  WARN "  On Windows Git Bash the Store stub 'python3' often exists but fails;"
+  WARN "  install Python or run inside the devcontainer."
+fi
+
 # ------------------------------------------------------------ global checks --
 echo ""
 info "Global check: resource provider registration"
@@ -73,12 +100,18 @@ done
 echo ""
 info "Global check: Entra directory-read (member e-mail resolution)"
 if [[ -n "$ENTRA_EMAIL" ]]; then
-  if az ad user show --id "$ENTRA_EMAIL" --query id -o tsv >/dev/null 2>&1; then
+  entra_err="$(az ad user show --id "$ENTRA_EMAIL" --query id -o tsv 2>&1 >/dev/null)"
+  if [[ -z "$entra_err" ]]; then
     PASS "az ad user show works — members.csv e-mail resolution is available"
+  elif grep -qiE 'not.?found|ResourceNotFound|does not exist' <<<"$entra_err"; then
+    WARN "'$ENTRA_EMAIL' not found in this tenant — check the address. Directory"
+    WARN "  read itself works (the lookup succeeded), so e-mail resolution is fine."
   else
-    WARN "az ad user show failed for '$ENTRA_EMAIL' (needs >= Directory Readers)."
-    WARN "  Fallbacks exist: --member-object-ids, or participants self-resolve"
-    WARN "  via 'az ad signed-in-user show --query id'. Document which you chose."
+    RED "az ad user show failed for '$ENTRA_EMAIL' — likely insufficient"
+    RED "  directory rights (needs >= Directory Readers): $entra_err"
+    RED "  members.csv e-mail resolution will fail for every squadron; either"
+    RED "  request the rights or collect object IDs (az ad signed-in-user show)."
+    ANY_BLOCKING=1
   fi
 else
   WARN "--check-entra-email not supplied; skipping directory-read test."
@@ -86,46 +119,79 @@ else
 fi
 
 # --------------------------------------------------------- per-region checks --
-declare -A SCORE=()
+declare -A SCORE=()      # region -> numeric headroom (kTPM); <0 = BLOCKED/unknown
+declare -A REGION_NOTE=()
 for region in $REGIONS; do
   echo ""
   echo "----- Region: $region -----"
   blocking=0
+  min_headroom=-1        # -1 = unknown
 
-  # (a) AIServices kind availability in region
-  if az cognitiveservices account list-skus --kind AIServices -l "$region" \
-      --query "[0].name" -o tsv >/dev/null 2>&1; then
-    PASS "AIServices kind available in $region"
+  # (a) AIServices kind availability in region — an EMPTY result is blocking;
+  #     a successful-but-empty list-skus used to be reported as PASS.
+  skus="$(az cognitiveservices account list-skus --kind AIServices -l "$region" \
+      --query "[].name" -o tsv 2>/dev/null)"
+  if [[ -n "${skus//[[:space:]]/}" ]]; then
+    PASS "AIServices kind available in $region (skus: $(echo $skus | tr '\n' ' '))"
   else
-    RED "AIServices kind NOT available in $region"; blocking=1
+    RED "AIServices kind NOT available in $region (list-skus returned nothing)"; blocking=1
   fi
 
-  # (b) Cognitive Services usage/quota headroom (requires Cognitive Services
-  #     Usages Reader at subscription scope — permission failure is a WARN,
-  #     resolved by running with proper rights or using --probe).
+  # (b) Cognitive Services usage/quota headroom per model × team count.
+  #     Requires 'Cognitive Services Usages Reader' at subscription scope —
+  #     permission failure is a WARN, resolved by running with proper rights
+  #     or using --probe.
   usage_json="$(az cognitiveservices usage list -l "$region" -o json 2>/dev/null)"
-  if [[ -n "$usage_json" && "$usage_json" != "[]" ]]; then
-    # Surface the tightest relevant quota entries for model deployments.
-    echo "$usage_json" | python3 - "$TEAMS" "$TPM" <<'PY' 2>/dev/null || \
-      WARN "could not parse usage output"
-import json, sys
+  if [[ -z "$PYBIN" ]]; then
+    WARN "quota check skipped — no Python interpreter."
+  elif [[ -n "$usage_json" && "$usage_json" != "[]" ]]; then
+    quota_out="$(USAGE_JSON="$usage_json" "$PYBIN" - "$TEAMS" "$TPM" $MODELS <<'PY'
+import json, os, sys
 teams, tpm = int(sys.argv[1]), int(sys.argv[2])
-entries = json.load(sys.stdin)
-shown = 0
-for e in entries:
-    name = e.get('name', {}).get('value', '')
-    cur, lim = e.get('currentValue', 0), e.get('limit', 0)
-    if any(k in name.lower() for k in ('openai', 'gpt', 'standard.g')) and lim:
+models = sys.argv[3:]
+entries = json.loads(os.environ["USAGE_JSON"])
+need = teams * tpm          # kTPM — see units caveat in the header
+min_headroom = None
+blocking = 0
+for model in models:
+    # Usage names look like "OpenAI.GlobalStandard.gpt-4.1" — suffix match.
+    hits = [e for e in entries
+            if e.get('name', {}).get('value', '').lower().endswith(model.lower())]
+    if not hits:
+        print(f'  [WARN] no usage-quota entry ending in "{model}" — '
+              'unknown; --probe is the reliable check', flush=True)
+        continue
+    for e in hits:
+        name = e['name']['value']
+        cur, lim = e.get('currentValue') or 0, e.get('limit') or 0
         head = lim - cur
-        need = teams * tpm  # kTPM units
-        tag = 'PASS' if head >= need else 'BLOCKING'
-        print(f'  [{tag}] quota "{name}": used {cur} / limit {lim} '
-              f'(need ~{need}k TPM headroom for {teams} squadrons)')
-        shown += 1
-if not shown:
-    print('  [WARN] no model-quota entries found in usage list — '
-          'run with --probe to verify model availability directly')
+        min_headroom = head if min_headroom is None else min(min_headroom, head)
+        if not lim:
+            print(f'  [WARN] quota "{name}": limit is 0/missing — verify '
+                  'units manually (assumption: values are in kTPM)', flush=True)
+        elif head >= need:
+            print(f'  [PASS] quota "{name}": used {cur} / limit {lim} '
+                  f'(headroom {head}k TPM, need ~{need}k)', flush=True)
+        else:
+            print(f'  [BLOCKING] quota "{name}": used {cur} / limit {lim} '
+                  f'(headroom {head}k TPM < need ~{need}k for {teams} squadrons)',
+                  flush=True)
+            blocking += 1
+print(f'__RESULT__ {blocking} {min_headroom if min_headroom is not None else -1}')
 PY
+)"
+    quota_rc=$?
+    # All lines except the __RESULT__ trailer are human-readable output.
+    grep -v '^__RESULT__' <<<"$quota_out" || true
+    if (( quota_rc != 0 )); then
+      WARN "could not parse usage output — quota state unknown (use --probe)"
+    else
+      result_line="$(grep '^__RESULT__' <<<"$quota_out")"
+      quota_blocks="${result_line#__RESULT__ }"; quota_blocks="${quota_blocks%% *}"
+      h="${result_line##* }"
+      (( quota_blocks > 0 )) && { blocking=1; }
+      (( h >= 0 )) && min_headroom="$h"
+    fi
   else
     WARN "az cognitiveservices usage list unavailable (needs 'Cognitive Services"
     WARN "  Usages Reader' at subscription scope). Use --probe for certainty."
@@ -168,23 +234,41 @@ PY
     PASS "$region: Search count $existing + $TEAMS = $total (within typical defaults)"
   fi
 
-  SCORE[$region]=$(( 100 - blocking * 1000 ))
+  # Headroom-based score: regions sort by their tightest measured quota.
+  if (( blocking )); then
+    SCORE[$region]=-999999; REGION_NOTE[$region]="BLOCKED"
+  elif (( min_headroom < 0 )); then
+    SCORE[$region]=-1; REGION_NOTE[$region]="quota unknown"
+  else
+    SCORE[$region]=$min_headroom; REGION_NOTE[$region]="min headroom ${min_headroom}k TPM"
+  fi
 done
 
 # ------------------------------------------------------------- verdict table --
 echo ""
 echo "=========================================================================="
-echo " RECOMMENDATION (data-driven — measured above, not a fixed order)"
+echo " RECOMMENDATION (data-driven — sorted by tightest measured quota headroom)"
 echo "=========================================================================="
 ranked="$(for r in $REGIONS; do echo "${SCORE[$r]:-0} $r"; done | sort -rn | awk '{print $2}')"
 first=1
+green=0
 for r in $ranked; do
-  if (( first == 1 )); then echo "  PRIMARY  : $r"; first=0; else echo "  fallback : $r"; fi
+  tag="fallback"; (( first == 1 )) && tag="PRIMARY"; first=0
+  printf '  %-8s : %-15s %s\n' "$tag" "$r" "${REGION_NOTE[$r]}"
+  [[ "${REGION_NOTE[$r]}" != "BLOCKED" ]] && green=$((green + 1))
 done
+echo ""
 if [[ "$ANY_BLOCKING" -eq 1 ]]; then
-  echo ""
   echo "Some GLOBAL checks are BLOCKING — fix them before the bootcamp."
+fi
+if (( green == 0 )); then
+  echo "No candidate region is fully green — resolve BLOCKING items and re-run."
 fi
 echo ""
 echo "Reminder: re-run this script 1-2 days before the bootcamp, and after any"
 echo "quota increase is granted."
+
+if [[ "$ANY_BLOCKING" -eq 1 || "$green" -eq 0 ]]; then
+  exit 1
+fi
+exit 0

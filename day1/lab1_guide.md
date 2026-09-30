@@ -50,8 +50,10 @@ python --version                          # >= 3.10
 ```
 
 Your squadron's resource group must already exist **or** will be created by
-the setup script. Your account needs `Contributor` **on that RG only** — the
-trainer assigns this before the session (see README > Manual admin steps).
+the setup script. Your account needs `Contributor` **on that RG only**, plus
+the six data-plane roles — **the trainer assigns both before the session**
+(see README > Manual steps (subscription admin); participants cannot create
+role assignments themselves).
 
 ### Step 1 — Deploy the squadron stack
 
@@ -65,9 +67,10 @@ What happens:
 - Creates `rg-corbit-sq<NN>` (tags `bootcamp=critical-orbit`, `squadron=<NN>`).
 - Runs a **what-if** preflight (validation only, no changes).
 - Deploys `day1/infra/main.bicep` — storage, Key Vault, AI Services + both
-  model deployments, AI Search, Foundry project, and **RBAC role assignments
-  for every squadron member** (deployer is auto-included; extra members come
-  from `--members-file members.csv` or `--member-object-ids`).
+  model deployments, AI Search, Foundry project. Data-plane role assignments
+  are **pre-made by the trainer** (`assignDataPlaneRoles=false` by default —
+  participants' Contributor role cannot create them); `--assign-roles` exists
+  for admins running the script with elevated rights.
 - Writes `.env` with endpoints/identifiers only (mode `600`, gitignored).
   **No secrets are ever written.**
 

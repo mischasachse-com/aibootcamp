@@ -78,13 +78,10 @@ def main() -> None:
         sys.exit(2)
 
     from azure.identity import DefaultAzureCredential
-    from azure.ai.projects import AIProjectClient
+    from common.openai_client import get_openai_client
 
     credential = DefaultAzureCredential()
-    project = AIProjectClient(
-        endpoint=os.environ["FOUNDRY_PROJECT_ENDPOINT"], credential=credential
-    )
-    client = project.get_openai_client()
+    client = get_openai_client(credential)
 
     image_b64 = base64.b64encode(image_path.read_bytes()).decode()
     analysis = json.loads(analysis_path.read_text(encoding="utf-8"))

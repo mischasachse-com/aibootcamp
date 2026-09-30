@@ -5,9 +5,15 @@ Project Critical Orbit — Day 1, Lab 1, Step 01: connection smoke test.
 Verifies, in order:
   1. .env configuration is present and complete
   2. DefaultAzureCredential can acquire a token (you ran `az login`)
-  3. The Foundry project endpoint answers a minimal chat completion
+  3. The AI Services OpenAI endpoint answers a minimal chat completion
   4. The embedding deployment answers a probe
   5. Azure AI Search endpoint is reachable with Entra auth
+
+Chat + embeddings talk to AZURE_OPENAI_ENDPOINT (the account's
+<name>.openai.azure.com/openai/v1/ surface) — not the Foundry project
+endpoint, whose get_openai_client() route does not serve embeddings
+reliably (Azure/azure-sdk-for-python#44532). The project endpoint is only
+needed for the Day-3 Foundry Agent stretch backend.
 
 Authentication failures are reported as human-readable remediation steps —
 never raw stack traces — because the most common lab failure is an expired
@@ -35,41 +41,93 @@ load_dotenv(REPO_ROOT / ".env")
 
 REQUIRED_VARS = [
     "AZURE_RESOURCE_GROUP",
-    "FOUNDRY_PROJECT_ENDPOINT",
+    "AZURE_OPENAI_ENDPOINT",
     "AZURE_SEARCH_ENDPOINT",
     "CHAT_MODEL_DEPLOYMENT",
     "EMBEDDING_MODEL_DEPLOYMENT",
 ]
 
 
-def fail(step: str, exc: BaseException) -> NoReturn:
-    """Print a human-readable diagnosis for the common failure classes."""
+def classify_error(exc: BaseException) -> str:
+    """Map an exception to a diagnosis bucket (unit-tested — the wrong bucket
+    sends participants down the wrong remediation path).
+
+    Buckets: no_login | not_authenticated | not_authorized | not_found |
+    unreachable | unexpected
+    """
     from azure.core.exceptions import ClientAuthenticationError, HttpResponseError
     from azure.identity import CredentialUnavailableError
 
+    try:
+        import openai
+    except ImportError:  # pragma: no cover — openai is a required dep
+        openai = None  # type: ignore[assignment]
+
+    # No usable credential at all (DefaultAzureCredential exhausted the chain).
+    if isinstance(exc, CredentialUnavailableError):
+        return "no_login"
+    # OpenAI SDK error classes (chat/embedding calls).
+    if openai is not None:
+        if isinstance(exc, openai.AuthenticationError):
+            return "not_authenticated"
+        if isinstance(exc, openai.PermissionDeniedError):
+            return "not_authorized"
+        if isinstance(exc, openai.NotFoundError):
+            return "not_found"
+        if isinstance(exc, openai.APIConnectionError):
+            return "unreachable"
+    # Azure SDK: not logged in surfaces as ClientAuthenticationError from
+    # DefaultAzureCredential.get_token — NOT "authorized but denied".
+    if isinstance(exc, ClientAuthenticationError):
+        return "not_authenticated"
+    if isinstance(exc, HttpResponseError) and exc.status_code in (401, 403):
+        return "not_authenticated" if exc.status_code == 401 else "not_authorized"
+    return "unexpected"
+
+
+def fail(step: str, exc: BaseException) -> NoReturn:
+    """Print a human-readable diagnosis for the common failure classes."""
     rg = os.getenv("AZURE_RESOURCE_GROUP", "rg-corbit-sq<NN>")
     print(f"\n[FAIL] {step}")
     print(f"       underlying error: {type(exc).__name__}: {exc}\n")
 
-    if isinstance(exc, CredentialUnavailableError):
+    diagnosis = classify_error(exc)
+    if diagnosis == "no_login":
         print("Diagnosis : no usable Azure credential was found.")
         print("Fix       :")
         print("  1. Run `az login` (add `--tenant <tenant-id>` if you belong to more than one).")
         print("  2. Verify you are in the right subscription:")
         print("       az account show")
-        print(f"  3. Verify you have Contributor on YOUR squadron RG: {rg}")
-        print("       az group show -n " + rg)
-    elif isinstance(exc, ClientAuthenticationError) or (
-        isinstance(exc, HttpResponseError) and exc.status_code in (401, 403)
-    ):
-        print("Diagnosis : authenticated, but not authorized for this resource.")
+    elif diagnosis == "not_authenticated":
+        print("Diagnosis : authentication failed — your token was rejected or could")
+        print("            not be acquired (expired login or wrong tenant).")
         print("Fix       :")
-        print(f"  1. Confirm .env endpoints belong to YOUR squadron (RG {rg}).")
-        print("  2. Confirm the deployment granted you data-plane roles:")
-        print(f"       az role assignment list --scope /subscriptions/$SUB/resourceGroups/{rg} \\")
+        print("  1. Run `az login --tenant <tenant-id>` again.")
+        print("  2. Confirm the subscription context: az account show")
+        print(f"  3. Confirm .env endpoints belong to YOUR squadron (RG {rg}).")
+    elif diagnosis == "not_authorized":
+        print("Diagnosis : authenticated, but not authorized for this resource —")
+        print("            your data-plane role assignment is missing or not propagated.")
+        print("Fix       :")
+        print("  1. List your assignments on the squadron RG:")
+        print(f"       az role assignment list --scope /subscriptions/<sub>/resourceGroups/{rg} \\")
         print("         --assignee $(az ad signed-in-user show --query id -o tsv) -o table")
-        print("  3. If roles are missing, re-run scripts/setup-squadron.sh")
-        print("     (add --members-file / --member-object-ids if needed).")
+        print("  2. You should see all six data-plane roles (Cognitive Services OpenAI")
+        print("     User, Cognitive Services User, Search Service + Index Data")
+        print("     Contributor, Storage Blob Data Contributor, Key Vault Secrets")
+        print("     Officer). If any are missing, ask the TRAINER — participants")
+        print("     cannot assign roles (trainer runs assign-squadron-access.sh).")
+        print("  3. RBAC propagation can take a few minutes — wait and retry.")
+    elif diagnosis == "not_found":
+        print("Diagnosis : endpoint or model deployment not found (404).")
+        print("Fix       :")
+        print("  1. Check .env: AZURE_OPENAI_ENDPOINT must be https://<account>.openai.azure.com/")
+        print("     and CHAT_MODEL_DEPLOYMENT / EMBEDDING_MODEL_DEPLOYMENT must match")
+        print("     the deployment names (defaults: gpt-4.1, text-embedding-3-large).")
+        print("  2. Re-run scripts/setup-squadron.sh to regenerate .env.")
+    elif diagnosis == "unreachable":
+        print("Diagnosis : could not reach the endpoint (DNS/network/proxy).")
+        print("Fix       : check connectivity/VPN; verify the endpoint hostname in .env.")
     else:
         print("Diagnosis : unexpected error — see README > Troubleshooting.")
         print("Fix       : re-run with --verbose; if it persists ask the trainer.")
@@ -89,7 +147,6 @@ def main() -> None:
         sys.exit(1)
     print("[ok] .env configuration complete")
 
-    project_endpoint = os.environ["FOUNDRY_PROJECT_ENDPOINT"]
     search_endpoint = os.environ["AZURE_SEARCH_ENDPOINT"].rstrip("/")
     chat_model = os.environ["CHAT_MODEL_DEPLOYMENT"]
     embed_model = os.environ["EMBEDDING_MODEL_DEPLOYMENT"]
@@ -109,27 +166,26 @@ def main() -> None:
             traceback.print_exc()
         fail("credential acquisition", exc)
 
-    # --- 3. Foundry project: chat ping ---------------------------------------
+    # --- 3. OpenAI endpoint: chat ping ---------------------------------------
     try:
-        from azure.ai.projects import AIProjectClient
+        from common.openai_client import get_openai_client
 
-        with AIProjectClient(endpoint=project_endpoint, credential=credential) as project:
-            client = project.get_openai_client()
-            resp = client.chat.completions.create(
-                model=chat_model,
-                messages=[
-                    {"role": "system", "content": "You are a terse ground-control assistant."},
-                    {"role": "user", "content": "Reply with exactly: LINK-EST"},
-                ],
-                max_completion_tokens=16,
-            )
-            print(f"[ok] chat model '{chat_model}' replied: {resp.choices[0].message.content.strip()}")
+        client = get_openai_client(credential)
+        resp = client.chat.completions.create(
+            model=chat_model,
+            messages=[
+                {"role": "system", "content": "You are a terse ground-control assistant."},
+                {"role": "user", "content": "Reply with exactly: LINK-EST"},
+            ],
+            max_completion_tokens=16,
+        )
+        print(f"[ok] chat model '{chat_model}' replied: {resp.choices[0].message.content.strip()}")
     except Exception as exc:  # noqa: BLE001
         if args.verbose:
             import traceback
 
             traceback.print_exc()
-        fail("Foundry chat completion", exc)
+        fail("chat completion via AI Services endpoint", exc)
 
     # --- 4. embeddings probe --------------------------------------------------
     try:

@@ -5,8 +5,7 @@
   },
   "features": {
     "ghcr.io/devcontainers/features/azure-cli:1": {},
-    "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/git:1": {}
   },
   "customizations": {
     "vscode": {
@@ -16,7 +15,7 @@
         "ms-azuretools.vscode-bicep",
         "editorconfig.editorconfig",
         "timonwong.shellcheck",
-        "github.vscode-github-actions",
+        "ms-azure-devops.azure-pipelines",
         "redhat.vscode-yaml",
         "davidanson.vscode-markdownlint"
       ],
