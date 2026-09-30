@@ -1,0 +1,29 @@
+# =============================================================================
+# Project Critical Orbit — Python dependencies
+#
+# Dependency-management approach:
+#   * Exact pins (`==`) so every squadron runs the identical, tested-together
+#     set of packages — no floating ranges that drift between participants.
+#   * Versions verified against PyPI on 2026-09-30. Re-verify the whole set
+#     (`pip install -r requirements.txt` in a clean venv) before each delivery.
+#   * Python >= 3.10 required (azure-ai-projects 2.x floor); devcontainer uses
+#     Python 3.12.
+#   * Bump deliberately, test the full offline suite (`pytest tests/`), then
+#     commit — treat this file like a lock file.
+# =============================================================================
+
+# --- Azure SDK (runtime) ------------------------------------------------------
+azure-identity==1.25.3          # DefaultAzureCredential — keyless auth everywhere
+azure-ai-projects==2.7.0        # AIProjectClient + get_openai_client() (Foundry)
+azure-search-documents==12.0.0  # SearchIndexClient / SearchClient / VectorizedQuery
+azure-ai-agents==1.1.0          # Day 3 stretch: Foundry Agent Service (AgentsClient)
+azure-storage-blob==12.30.3     # storage helpers used by reset/verification paths
+
+# --- AI / data ----------------------------------------------------------------
+openai==3.22.1                  # chat/embeddings/vision + structured outputs
+pydantic==2.13.5                # schema-validated model output (Day 2)
+python-dotenv==1.2.3            # load squadron .env
+
+# --- Development / verification (used by tests/ and CI) -----------------------
+pytest==9.1.1
+ruff==0.16.9

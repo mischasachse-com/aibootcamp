@@ -1,0 +1,47 @@
+# --- Project Critical Orbit — .gitignore ---
+# Never commit secrets or local machine state.
+
+# Local environment file written by scripts/setup-squadron.sh (endpoints only,
+# but still treated as local state — never commit).
+.env
+.env.*
+!.env.example
+
+# Participant identity data (contains email addresses — personal data).
+members.csv
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Generated lab artifacts (untrusted model output — review locally, never commit)
+day2/generated/
+*.remediation.bicep
+generated/
+
+# Day 3 agent audit log
+day3/audit_log.jsonl
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+*.iml
+
+# Azure / azd local state
+.azure/
+.azure-glossary.json
+
+# Logs
+*.log

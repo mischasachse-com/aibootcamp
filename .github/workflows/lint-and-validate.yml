@@ -1,0 +1,87 @@
+# Project Critical Orbit — offline lint & validation pipeline.
+# Deliberately contains NO Azure deployment steps: every job runs without
+# Azure credentials so it can execute on any PR/fork.
+name: lint-and-validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python (ruff, compile, pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Ruff lint
+        run: ruff check day1 day2 day3 tests
+      - name: Byte-compile all sources
+        run: python -m compileall -q day1 day2 day3 tests
+      - name: Offline unit tests (no Azure needed)
+        run: pytest tests/ -v
+
+  bicep:
+    name: Bicep build (syntax + lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Install Bicep CLI
+        run: az bicep install && az bicep version
+      - name: Build template
+        run: az bicep build --file day1/infra/main.bicep
+
+  shell:
+    name: Shell (shellcheck + syntax)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Shellcheck all scripts
+        run: shellcheck -S warning scripts/*.sh trainer/*.sh
+      - name: bash -n syntax check
+        run: for f in scripts/*.sh trainer/*.sh; do bash -n "$f"; done
+
+  data-integrity:
+    name: Data fixtures (JSON validity + secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Validate JSON fixtures
+        run: |
+          # telemetry_dump_corrupted.json is intentionally malformed — skip it.
+          for f in data/blackbox/nsg_export_ground_station.json \
+                   data/incidents/incident_001_bruteforce.json \
+                   data/incidents/incident_002_privilege_escalation.json; do
+            python -c "import json,sys; json.load(open('$f')); print('OK: $f')"
+          done
+          # The corrupted blackbox file must FAIL strict parsing (it's the lab's job to repair it)
+          if python -c "import json; json.load(open('data/blackbox/telemetry_dump_corrupted.json'))" 2>/dev/null; then
+            echo "ERROR: corrupted telemetry file parsed cleanly — fixture broken" && exit 1
+          else
+            echo "OK: corrupted telemetry is intentionally malformed"
+          fi
+      - name: Secret-pattern scan (fail on real-looking secrets)
+        run: |
+          if grep -rEn 'BEGIN (RSA|OPENSSH|EC|PGP) PRIVATE KEY|AKIA[0-9A-Z]{16}|api[_-]?key[=:][^=]*[A-Za-z0-9]{20,}' \
+              --exclude-dir=.git --exclude=.env.example . ; then
+            echo "ERROR: possible secret material found" && exit 1
+          fi
+          echo "OK: no secret patterns found"
+      - name: Ensure .env is never committed
+        run: |
+          if git ls-files | grep -E '^\.env$' ; then
+            echo "ERROR: .env is tracked in git" && exit 1
+          fi
+          echo "OK: .env is not tracked"

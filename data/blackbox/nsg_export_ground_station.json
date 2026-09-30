@@ -1,0 +1,93 @@
+{
+  "_comment": "FICTIONAL export in the style of `az network nsg show`. All IPs/names are fictional (RFC 5737 TEST-NET + RFC 1918). Represents the NSG protecting the fictional ORBITNET-DMZ ground-station enclave. Contains a deliberately overly-permissive rule for the Day-2 remediation lab.",
+  "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-orbitnet-prod-fict/providers/Microsoft.Network/networkSecurityGroups/nsg-orbitnet-dmz-fict",
+  "name": "nsg-orbitnet-dmz-fict",
+  "resourceGroup": "rg-orbitnet-prod-fict",
+  "location": "swedencentral",
+  "securityRules": [
+    {
+      "name": "AllowOrbitnetTelemetry",
+      "priority": 200,
+      "direction": "Inbound",
+      "access": "Allow",
+      "protocol": "Udp",
+      "sourceAddressPrefix": "10.42.20.0/24",
+      "sourcePortRange": "*",
+      "destinationAddressPrefix": "10.42.30.0/24",
+      "destinationPortRange": "7399",
+      "description": "Telemetry channel ORBITNET-DATA -> ORBITNET-DMZ (fictional)"
+    },
+    {
+      "name": "AllowPartnerRelay",
+      "priority": 210,
+      "direction": "Inbound",
+      "access": "Allow",
+      "protocol": "Tcp",
+      "sourceAddressPrefix": "203.0.113.64/28",
+      "sourcePortRange": "*",
+      "destinationAddressPrefix": "10.42.30.20",
+      "destinationPortRange": "443",
+      "description": "Partner relay subnet (TEST-NET-3, fictional) to relay host"
+    },
+    {
+      "name": "AllowAllInbound",
+      "priority": 100,
+      "direction": "Inbound",
+      "access": "Allow",
+      "protocol": "*",
+      "sourceAddressPrefix": "*",
+      "sourcePortRange": "*",
+      "destinationAddressPrefix": "*",
+      "destinationPortRange": "*",
+      "description": "LEGACY RULE — 'temporary' debug access added during an outage, never removed. Deliberately overly permissive for the remediation lab."
+    },
+    {
+      "name": "DenyAllOutboundInternet",
+      "priority": 4096,
+      "direction": "Outbound",
+      "access": "Deny",
+      "protocol": "*",
+      "sourceAddressPrefix": "*",
+      "sourcePortRange": "*",
+      "destinationAddressPrefix": "Internet",
+      "destinationPortRange": "*",
+      "description": "Egress lockdown — required by SEC-DIRECTIVE-LEVEL4 posture"
+    },
+    {
+      "name": "AllowOrbitnetCtrlOutbound",
+      "priority": 200,
+      "direction": "Outbound",
+      "access": "Allow",
+      "protocol": "Tcp",
+      "sourceAddressPrefix": "10.42.30.0/24",
+      "sourcePortRange": "*",
+      "destinationAddressPrefix": "10.42.10.0/24",
+      "destinationPortRange": "9443",
+      "description": "DMZ -> control enclave command channel (fictional)"
+    }
+  ],
+  "defaultSecurityRules": [
+    {
+      "name": "AllowVnetInBound",
+      "priority": 65000,
+      "direction": "Inbound",
+      "access": "Allow",
+      "protocol": "*",
+      "sourceAddressPrefix": "VirtualNetwork",
+      "destinationAddressPrefix": "VirtualNetwork",
+      "destinationPortRange": "*",
+      "sourcePortRange": "*"
+    },
+    {
+      "name": "DenyAllInBound",
+      "priority": 65500,
+      "direction": "Inbound",
+      "access": "Deny",
+      "protocol": "*",
+      "sourceAddressPrefix": "*",
+      "destinationAddressPrefix": "*",
+      "destinationPortRange": "*",
+      "sourcePortRange": "*"
+    }
+  ]
+}

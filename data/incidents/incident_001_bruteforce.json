@@ -1,0 +1,32 @@
+{
+  "_comment": "FICTIONAL security alert payload — Project Critical Orbit Day 3 lab. Source IPs use RFC 5737 TEST-NET ranges; account/host names are fictional.",
+  "alertId": "INC-2026-0001",
+  "alertType": "BRUTE_FORCE_AUTH",
+  "severity": "high",
+  "status": "open",
+  "firstSeenUtc": "2026-09-16T19:02:11Z",
+  "lastSeenUtc": "2026-09-16T19:41:53Z",
+  "sourceIps": ["198.51.100.77", "198.51.100.92"],
+  "target": {
+    "host": "mc-console-03.orbitnet.fict",
+    "ip": "10.42.10.33",
+    "enclave": "ORBITNET-CTRL",
+    "service": "mission-control-sso (fictional)"
+  },
+  "evidence": {
+    "failedAuthCount": 341,
+    "accountsTargeted": ["gdo.oncall", "ops.l2.kiruna", "svc-telemetry-ingest", "admin.orbitnet"],
+    "successfulAuth": true,
+    "successfulAccount": "gdo.oncall",
+    "authProtocol": "ssh-then-rdp (fictional)",
+    "geoNote": "TEST-NET-2 addresses — fictional lab attacker range",
+    "sampleLog": "2026-09-16T19:40:02Z sshd[4213]: Failed password for gdo.oncall from 198.51.100.77 port 51244"
+  },
+  "recommendedResponseOptions": [
+    "block_ip_address (the two source IPs at the DMZ NSG)",
+    "disable the gdo.oncall account pending verification",
+    "rotate credentials for targeted service accounts",
+    "increase monitoring on ORBITNET-CTRL for 24h"
+  ],
+  "relatedDocuments": ["SOP_ORBITAL_NET_4B.md", "SEC_DIRECTIVE_LEVEL4.md"]
+}

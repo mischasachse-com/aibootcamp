@@ -1,0 +1,24 @@
+# Project Critical Orbit — line-ending & file-mode rules.
+# Shell/Bicep/Python must keep LF endings even on Windows (autocrlf=true would
+# otherwise turn .sh files into CRLF and break bash with `$'\r': command not found`).
+
+* text=auto
+
+*.sh        text eol=lf
+*.bash      text eol=lf
+*.py        text eol=lf
+*.bicep     text eol=lf
+*.bicepparam text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.csv       text eol=lf
+*.example   text eol=lf
+Dockerfile  text eol=lf
+.editorconfig text eol=lf
+.gitignore  text eol=lf
+.gitattributes text eol=lf
+
+# Binary assets — never touch line endings.
+*.png       binary

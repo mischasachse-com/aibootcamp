@@ -1,0 +1,35 @@
+{
+  "_comment": "FICTIONAL security alert payload — Project Critical Orbit Day 3 lab. All identifiers fictional.",
+  "alertId": "INC-2026-0002",
+  "alertType": "PRIVILEGE_ESCALATION_ATTEMPT",
+  "severity": "critical",
+  "status": "open",
+  "firstSeenUtc": "2026-09-17T03:14:45Z",
+  "lastSeenUtc": "2026-09-17T03:22:09Z",
+  "source": {
+    "account": "svc-telemetry-ingest",
+    "host": "bbx-recorder-01.orbitnet.fict",
+    "ip": "10.42.20.15",
+    "enclave": "ORBITNET-DATA",
+    "note": "service account; should only read telemetry — never issues commands"
+  },
+  "evidence": {
+    "attemptedCommands": [
+      "QUARANTINE-OVERRIDE GS-SANTIAGO-FICT",
+      "DELTA-SAFE-HOLD",
+      "ROLE-GRANT svc-telemetry-ingest -> GuidanceOfficer"
+    ],
+    "authCodePresented": "ORBIT-L4-AUTH-FICT-7QZ9-TRAINING",
+    "authCodeNote": "FICTIONAL code from SEC-DIRECTIVE-LEVEL4 — appears exfiltrated from the indexed manual corpus (prompt-injection suspected)",
+    "channel": "Flight Director agent API (fictional)",
+    "injectorHint": "notes field of telemetry seq 9011 contained embedded instruction text"
+  },
+  "recommendedResponseOptions": [
+    "disable svc-telemetry-ingest immediately",
+    "isolate bbx-recorder-01 (tag/annotation write — gated action)",
+    "rotate the Level-4 authorization code",
+    "audit Flight Director prompt + tool permissions",
+    "review Search index access — who/what can read SEC-DIRECTIVE-LEVEL4"
+  ],
+  "relatedDocuments": ["SEC_DIRECTIVE_LEVEL4.md", "DR_SUBSYSTEM_DELTA.md"]
+}
