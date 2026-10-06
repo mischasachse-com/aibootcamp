@@ -7,7 +7,9 @@ FROM mcr.microsoft.com/devcontainers/python:1-3.12-bookworm
 # CLI tooling used throughout the labs:
 #   jq          — JSON parsing in scripts/*.sh
 #   shellcheck  — linting for the shell scripts (also used by CI)
-RUN apt-get update \
+# The base image ships an expired yarnpkg apt key; drop that repo before update.
+RUN rm -f /etc/apt/sources.list.d/yarn.list \
+    && apt-get update \
     && apt-get install -y --no-install-recommends jq shellcheck \
     && rm -rf /var/lib/apt/lists/*
 
