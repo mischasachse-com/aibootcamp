@@ -1,0 +1,12 @@
+# =============================================================================
+# Containers Track — Day 2 app dependencies
+# Pins for the Azure/AI SDKs match the repo's requirements.txt exactly
+# (verified set, 2026-09-30). fastapi/uvicorn are the only additions.
+# =============================================================================
+fastapi==0.142.0               # web framework (released 2026-09-29)
+uvicorn[standard]==0.54.0      # ASGI server (released 2026-09-25)
+openai==3.22.1                 # matches repo requirements.txt
+pydantic==2.13.5               # matches repo requirements.txt (MissionAssessment schema)
+azure-identity==1.25.3         # matches repo requirements.txt
+azure-ai-projects==2.7.0       # matches repo requirements.txt
+python-dotenv==1.2.3           # matches repo requirements.txt

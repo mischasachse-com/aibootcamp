@@ -1,0 +1,22 @@
+{
+  "name": "critical-orbit-containers-track",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/azure-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-azuretools.vscode-bicep",
+        "editorconfig.editorconfig",
+        "timonwong.shellcheck"
+      ]
+    }
+  },
+  "postCreateCommand": "pip install -r requirements.txt -r extras/containers-track/day1/app/requirements.txt",
+  "remoteUser": "vscode"
+}
