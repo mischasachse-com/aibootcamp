@@ -1,0 +1,33 @@
+# =============================================================================
+# Containers Track — ignore file for shared/Dockerfile.
+#
+# The build context is the REPOSITORY ROOT (see Dockerfile header). BuildKit
+# resolves "<dockerfile path>.dockerignore" relative to the context root, so
+# this file must be named `Dockerfile.dockerignore` and sit next to the
+# Dockerfile — a plain `.dockerignore` here would not be applied.
+#
+# Goal: keep the build context small and ensure no local secrets/state can be
+# sent to the daemon or copied into the image.
+# =============================================================================
+
+.git/
+.ruff_cache/
+.pytest_cache/
+**/__pycache__/
+**/*.pyc
+.venv/
+venv/
+env/
+
+# Never send local env files (endpoints/identifiers) into the build context.
+.env
+.env.*
+
+# Trainer-only tooling and test suite are not needed in the image.
+trainer/
+tests/
+
+# Generated lab artifacts (untrusted model output / audit logs) stay local.
+day2/generated/
+day3/audit_log.jsonl
+*.log
