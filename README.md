@@ -238,12 +238,22 @@ Azure Repos — not GitHub. One-time manual prerequisites:
 
 Re-verify live: `az cognitiveservices account list-models -n <acct> -g <rg>`.
 
-> ⚠️ **Not yet verified against live Azure**: the `<account>.openai.azure.com`
-> route for embeddings/chat is evidenced by SDK source + GitHub issues, not by
-> a real deployment of this template. Run ONE end-to-end test squadron
-> (`setup-squadron.sh --team 90` → `01_test_connection.py` → index → query)
-> before the bootcamp. Same caveat for the quota-unit assumption (kTPM) in
-> `preflight-trainer.sh` — eyeball the printed limit/headroom magnitudes.
+> ✅ **Live-verified** (Nov 2026): a full squadron was deployed end-to-end on a
+> real subscription — `rg-corbit-sq90` in `spaincentral` — and every lab path
+> ran: connection test, indexing, grounded Q&A, blackbox forensics, multimodal
+> assessment, remediation generation, agent loop + tools, incident simulator,
+> vulnerable/hardened duel, the Foundry backend stretch, and the containers
+> track (all endpoints). Verified on **Windows Git Bash**; expect ~10–15 min
+> of data-plane RBAC propagation after `--assign-roles` (Storage/Search
+> typically land before Cognitive Services).
+>
+> **Model note**: the test subscription had no `gpt-4.1` `GlobalStandard`
+> quota in *any* region (only Batch SKUs). The deployment used
+> `gpt-4o` `2024-11-20` via
+> `setup-squadron.sh --chat-model gpt-4o --chat-version 2024-11-20` — a proven
+> fallback when preflight shows no `GlobalStandard.gpt-4.1` headroom. Check
+> `preflight-trainer.sh` output before each event and pass `--chat-model`/
+> `--chat-version` accordingly.
 
 ## Manual steps (subscription admin)
 
@@ -263,11 +273,12 @@ Re-verify live: `az cognitiveservices account list-models -n <acct> -g <rg>`.
 |---|---|---|
 | `CredentialUnavailableError` / 401 | not logged in / wrong tenant | `az login --tenant <id>`; `az account show` |
 | 403 on AI or Search calls | missing data-plane roles | ask the **trainer** — only they can assign (`trainer/assign-squadron-access.sh`); check `az role assignment list` on your RG |
+| 401 right after deploy, roles confirmed assigned | RBAC propagation lag (measured: ~10–15 min; Cognitive Services slowest) | wait and retry; verify Storage first — it typically propagates earlier |
 | name conflict on redeploy after teardown | Key Vault / AIServices still soft-deleted | trainer: `teardown-all.sh --purge`, or pass `--name-seed` |
 | `StorageAccountAlreadyTaken` | global DNS collision (hash reduces, never guarantees) | re-run `setup-squadron.sh --name-seed <rand>` |
 | `semantic ranker` errors mid-lab | free-plan monthly quota exhausted | set `semanticSearchPlan=standard` (billed) or run queries with `--no-semantic` |
 | embedding dimension error | wrong `EXPECTED_EMBEDDING_DIMS` or model | `.env` `EXPECTED_EMBEDDING_DIMS` must match the deployed model (3072 for 3-large) |
-| model deployment failed | region capacity/quota | `trainer/preflight-trainer.sh`; retry with `--location` |
+| model deployment failed | region capacity/quota | `trainer/preflight-trainer.sh`; retry with `--location`; if `GlobalStandard.gpt-4.1` is absent subscription-wide, use `--chat-model gpt-4o --chat-version 2024-11-20` |
 | `.env` missing/incomplete | setup not run or partial deploy | re-run `setup-squadron.sh` — Bicep is idempotent |
 | `az ad user show` fails | no directory-read rights | use GUIDs or `az ad signed-in-user show` self-resolution |
 
@@ -287,9 +298,11 @@ from the branch policy's build validation, not from the YAML.
 
 ## Known limitations (documented, not bugs)
 
-- **Live verification pending**: `AZURE_OPENAI_ENDPOINT` chat/embedding route
-  and the preflight kTPM-unit assumption still need one real test deployment
-  (see the ⚠️ note above).
+- **Live-verified**: `AZURE_OPENAI_ENDPOINT` chat/embedding routes, the
+  preflight quota magnitudes, deploy→teardown→purge, and all lab paths were
+  proven on a real subscription (see the ✅ note above). Subscription-specific
+  variation still exists — model quota differs per subscription, so always
+  re-run `preflight-trainer.sh` before an event.
 - `ms-vscode.azure-account` is deprecated and deliberately not recommended;
   Entra auth flows through `az login` anyway.
 - Session recordings are produced per delivery by the trainer — the repo

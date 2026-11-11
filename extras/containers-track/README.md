@@ -110,7 +110,20 @@ role assignments for the managed identity:
 > the exact `az role assignment create` commands for your **Containers team
 > lead** (or trainer) to run with elevated rights. `--skip-rbac` skips them.
 
-Re-running the script is safe — every step checks existence first.
+Re-running the script is safe — every step checks existence first, and
+updates pin the pushed image **digest** so a same-tag rebuild always rolls
+out a fresh revision.
+
+> ✅ **Live-tested** (Nov 2026): all three apps deployed on a real
+> subscription via this script and every endpoint was exercised —
+> `/health`, `/chat` (day1), `/parse`, `/assess`, `/remediation` (day2),
+> `/incident`, `/simulate` (day3). Managed-identity auth to OpenAI, Search
+> and ACR verified end-to-end on Windows Git Bash. Two Windows gotchas are
+> handled inside the script: `--no-logs` on `az acr build` (local
+> log-streaming crashes on non-cp1252 output while the remote build
+> continues) and `MSYS_NO_PATHCONV=1` around commands that take ARM
+> resource IDs (Git Bash otherwise rewrites `/subscriptions/...` into a
+> `C:/Program Files/Git/...` path).
 
 ## Cleanup
 
