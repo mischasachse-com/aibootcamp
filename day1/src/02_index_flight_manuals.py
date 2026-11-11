@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MANUALS_DIR = REPO_ROOT / "data" / "flight_manuals"
 sys.path.insert(0, str(REPO_ROOT))
 
-from dotenv import load_dotenv  # noqa: E402
+from dotenv import load_dotenv
 
 load_dotenv(REPO_ROOT / ".env")
 
@@ -113,7 +113,9 @@ def main() -> None:
         if not os.getenv(var):
             die(f"missing .env var {var} — run scripts/setup-squadron.sh first")
 
+    from azure.core.exceptions import ResourceNotFoundError
     from azure.identity import DefaultAzureCredential
+    from azure.search.documents import SearchIndexingBufferedSender
     from azure.search.documents.indexes import SearchIndexClient
     from azure.search.documents.indexes.models import (
         HnswAlgorithmConfiguration,
@@ -129,8 +131,7 @@ def main() -> None:
         VectorSearch,
         VectorSearchProfile,
     )
-    from azure.core.exceptions import ResourceNotFoundError
-    from azure.search.documents import SearchIndexingBufferedSender
+
     from common.openai_client import get_openai_client
 
     credential = DefaultAzureCredential()

@@ -65,6 +65,7 @@ load_dotenv(REPO_ROOT / ".env")
 def _load_lab_module(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    sys.modules[name] = mod
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod
 
@@ -238,6 +239,7 @@ def _incident_task(prompt: str, alert_id: str | None) -> str:
 def _run_request(user_text: str) -> dict:
     """Full request path: credential, agent loop, audit diff."""
     from azure.identity import DefaultAzureCredential
+
     from common.openai_client import get_openai_client
 
     client = get_openai_client(DefaultAzureCredential())

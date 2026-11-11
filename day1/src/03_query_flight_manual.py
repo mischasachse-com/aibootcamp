@@ -38,7 +38,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from dotenv import load_dotenv  # noqa: E402
+from dotenv import load_dotenv
 
 load_dotenv(REPO_ROOT / ".env")
 
@@ -105,6 +105,7 @@ def main() -> None:
     from azure.identity import DefaultAzureCredential
     from azure.search.documents import SearchClient
     from azure.search.documents.models import VectorizedQuery
+
     from common.openai_client import get_openai_client
 
     credential = DefaultAzureCredential()
@@ -139,7 +140,7 @@ def main() -> None:
 
     try:
         results = list(search.search(**kwargs))
-    except Exception as exc:  # noqa: BLE001 — semantic quota failure path
+    except Exception as exc:
         msg = str(exc).lower()
         if "semantic" in msg and ("quota" in msg or "billing" in msg or "disabled" in msg or "capacity" in msg):
             warn_semantic_quota(exc)

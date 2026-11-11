@@ -56,9 +56,12 @@ az account show >/dev/null 2>&1 || corbit_die "Not signed in. Run 'az login'."
 
 corbit_info "Searching for bootcamp resource groups (name + tag match) ..."
 # Name pattern AND tag must BOTH match — belt and braces against accidents.
+# tr -d '\r': az -o tsv emits CRLF on Windows (Git Bash); a trailing \r breaks
+# the regex match below and silently selects zero targets.
 mapfile -t TARGETS < <(
   az group list --tag bootcamp=critical-orbit \
     --query "[?starts_with(name, 'rg-corbit-sq')].name" -o tsv \
+  | tr -d '\r' \
   | while IFS= read -r rg; do
       [[ "$rg" =~ $CORBIT_RG_RE ]] && printf '%s\n' "$rg"
     done
@@ -67,20 +70,25 @@ mapfile -t TARGETS < <(
 # ----------------------------------------------------------- purge candidates --
 # Soft-deleted KV/AIServices survive RG deletion; they block name reuse in
 # Mode B. Listed even when no RGs are deleted (leftovers from earlier runs).
-PURGE_LINES=()
-if [[ "$PURGE" -eq 1 ]]; then
-  corbit_info "Searching for soft-deleted bootcamp Key Vaults + AI accounts ..."
+collect_purge_lines() {
+  PURGE_LINES=()
   while IFS=$'\t' read -r name loc; do
     [[ "$name" =~ $CORBIT_SOFTDELETE_NAME_RE ]] || continue
     PURGE_LINES+=("keyvault|${name}|${loc}|")
   done < <(az keyvault list-deleted \
-      --query "[].{name:name,location:properties.location}" -o tsv 2>/dev/null || true)
+      --query "[].{name:name,location:properties.location}" -o tsv 2>/dev/null | tr -d '\r' || true)
   while IFS=$'\t' read -r name loc rid; do
     [[ "$name" =~ $CORBIT_SOFTDELETE_NAME_RE ]] || continue
     rg="${rid#*resourceGroups/}"; rg="${rg%%/*}"
     PURGE_LINES+=("cognitive|${name}|${loc}|${rg}")
   done < <(az cognitiveservices account list-deleted \
-      --query "[].{name:name,location:location,id:id}" -o tsv 2>/dev/null || true)
+      --query "[].{name:name,location:location,id:id}" -o tsv 2>/dev/null | tr -d '\r' || true)
+}
+
+PURGE_LINES=()
+if [[ "$PURGE" -eq 1 ]]; then
+  corbit_info "Searching for soft-deleted bootcamp Key Vaults + AI accounts ..."
+  collect_purge_lines
 fi
 
 # ----------------------------------------------------------------- report ---
@@ -131,6 +139,18 @@ if [[ ${#TARGETS[@]} -gt 0 ]]; then
       az group delete --name "$rg" --yes --no-wait
     fi
   done
+
+  # KV/AIServices go soft-deleted AS A RESULT of the deletion above, so they
+  # were absent from the pre-delete scan. Re-scan (brief wait for the
+  # soft-delete records to appear) or same-name redeploys hit name conflicts.
+  if [[ "$PURGE" -eq 1 ]]; then
+    corbit_info "Re-scanning for resources soft-deleted by the deletion ..."
+    for _attempt in 1 2 3; do
+      collect_purge_lines
+      [[ ${#PURGE_LINES[@]} -gt 0 ]] && break
+      sleep 10
+    done
+  fi
 fi
 
 # -------------------------------------------------------------------- purge --

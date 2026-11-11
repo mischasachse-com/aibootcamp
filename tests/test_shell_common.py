@@ -23,7 +23,7 @@ pytestmark = pytest.mark.skipif(bash is None, reason="bash not available")
 def run_bash(snippet: str) -> subprocess.CompletedProcess:
     script = f'. "{LIB.as_posix()}"\n{snippet}'
     return subprocess.run(
-        [bash, "-c", script], capture_output=True, text=True, timeout=30
+        [bash, "-c", script], capture_output=True, text=True, check=False, timeout=30
     )
 
 
@@ -49,7 +49,7 @@ def test_setup_script_team_flag_no_longer_octal():
     proc = subprocess.run(
         [bash, "-c",
          f'TEAM="08"; . "{LIB.as_posix()}"; corbit_team_id "$TEAM"'],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True, text=True, check=False, timeout=30,
     )
     assert proc.returncode == 0
     assert "value too great for base" not in proc.stderr
@@ -169,7 +169,7 @@ def test_all_shell_scripts_parse():
     assert scripts, "no shell scripts found"
     for s in scripts:
         proc = subprocess.run(
-            [bash, "-n", str(s)], capture_output=True, text=True, timeout=30
+            [bash, "-n", str(s)], capture_output=True, text=True, check=False, timeout=30
         )
         assert proc.returncode == 0, f"{s.name}: {proc.stderr}"
 

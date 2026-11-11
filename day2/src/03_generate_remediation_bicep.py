@@ -28,7 +28,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from dotenv import load_dotenv  # noqa: E402
+from dotenv import load_dotenv
 
 load_dotenv(REPO_ROOT / ".env")
 
@@ -58,7 +58,7 @@ def maybe_bicep_build(path: Path) -> None:
     try:
         proc = subprocess.run(
             [az, "bicep", "build", "--file", str(path)],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, check=False, timeout=120,
         )
         if proc.returncode == 0:
             print("[ok] `az bicep build` — generated snippet is syntactically valid")
@@ -86,6 +86,7 @@ def main() -> None:
         context = {"nsg_findings": flagged}
 
     from azure.identity import DefaultAzureCredential
+
     from common.openai_client import get_openai_client
 
     credential = DefaultAzureCredential()
@@ -143,7 +144,7 @@ def main() -> None:
     print(f"[ok] remediation snippet written to {out}")
     print("=" * 74)
     print("UNTRUSTED MODEL OUTPUT — review every line. This file is gitignored")
-    print("and is never deployed automatically. Validated ≠ approved.")
+    print("and is never deployed automatically. Validated != approved.")
     print("=" * 74)
 
     if args.check:

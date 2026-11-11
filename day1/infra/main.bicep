@@ -101,7 +101,7 @@ var tags = {
 
 var roleIds = {
   cognitiveServicesOpenAIUser: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
-  cognitiveServicesUser: 'a97b65f3-01c7-47bc-a750-80ecdd0f89d6'
+  cognitiveServicesUser: 'a97b65f3-24c7-4388-baec-2e87135dc908'
   searchServiceContributor: '7ca78c08-252a-4471-8644-bb5ff32d4ba0'
   searchIndexDataContributor: '8ebe5a00-799e-43f5-93ac-243d3dce84a7'
   storageBlobDataContributor: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
@@ -248,6 +248,9 @@ resource project 'Microsoft.CognitiveServices/accounts/projects@2025-09-01' = {
   location: location
   tags: tags
   identity: { type: 'SystemAssigned' }
+  // Creating the project while a model deployment PUT is still in-flight on the
+  // same account fails with RequestConflict — serialize after the deployments.
+  dependsOn: [chatDeployment, embeddingDeployment]
   properties: {
     displayName: 'Critical Orbit — Squadron ${teamId}'
     description: 'Project Critical Orbit bootcamp lab project (squadron ${teamId})'

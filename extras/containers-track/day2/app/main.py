@@ -71,6 +71,7 @@ def _load_lab_module(name: str, path: Path):
     technique day2/src/03_generate_remediation_bicep.py uses."""
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    sys.modules[name] = mod  # pydantic resolves forward refs via the module name
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod
 
@@ -185,6 +186,7 @@ def assess(req: AssessRequest | None = None):
                              "(set TOPOLOGY_IMAGE_PATH)")
 
         from azure.identity import DefaultAzureCredential
+
         from common.openai_client import get_openai_client
 
         client = get_openai_client(DefaultAzureCredential())
@@ -252,6 +254,7 @@ def remediation():
                     "detail": "no overly-permissive NSG rules found"}
 
         from azure.identity import DefaultAzureCredential
+
         from common.openai_client import get_openai_client
 
         client = get_openai_client(DefaultAzureCredential())

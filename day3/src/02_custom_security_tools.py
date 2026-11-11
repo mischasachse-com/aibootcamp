@@ -34,6 +34,7 @@ import ipaddress
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -42,7 +43,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from dotenv import load_dotenv  # noqa: E402
+from dotenv import load_dotenv
 
 load_dotenv(REPO_ROOT / ".env")
 
@@ -50,6 +51,10 @@ INCIDENTS_DIR = REPO_ROOT / "data" / "incidents"
 BLACKBOX = REPO_ROOT / "data" / "blackbox" / "telemetry_dump_corrupted.json"
 AUDIT_LOG = Path(__file__).resolve().parent.parent / "audit_log.jsonl"
 RG_RE = re.compile(r"^rg-corbit-sq\d{2}$")
+
+# Resolve az via PATH lookup: a bare "az" is not executable on Windows
+# (it is az.cmd and CreateProcess does not apply PATHEXT).
+AZ = shutil.which("az") or "az"
 
 
 def _env(name: str, default: str = "") -> str:
@@ -132,6 +137,7 @@ def search_flight_manuals(query: str, top: int = 4) -> dict:
         from azure.identity import DefaultAzureCredential
         from azure.search.documents import SearchClient
         from azure.search.documents.models import VectorizedQuery
+
         from common.openai_client import get_openai_client
 
         credential = DefaultAzureCredential()
@@ -166,9 +172,9 @@ def list_squadron_resources() -> dict:
     """Read-only inventory of THIS squadron's resource group."""
     rg = _rg()
     proc = subprocess.run(
-        ["az", "resource", "list", "-g", rg,
+        [AZ, "resource", "list", "-g", rg,
          "--query", "[].{name:name,type:type}", "-o", "json"],
-        capture_output=True, text=True, timeout=60,
+        capture_output=True, text=True, check=False, timeout=60,
     )
     if proc.returncode != 0:
         return {"error": proc.stderr.strip() or "az resource list failed"}
@@ -190,9 +196,9 @@ def _valid_ipv4(ip: str) -> bool:
 def _next_nsg_priority(nsg: str, rg: str) -> int:
     """Lowest free inbound priority in 100-4000; falls back to 100 on failure."""
     proc = subprocess.run(
-        ["az", "network", "nsg", "rule", "list", "-g", rg, "--nsg-name", nsg,
+        [AZ, "network", "nsg", "rule", "list", "-g", rg, "--nsg-name", nsg,
          "--query", "[].priority", "-o", "json"],
-        capture_output=True, text=True, timeout=60,
+        capture_output=True, text=True, check=False, timeout=60,
     )
     used = set()
     if proc.returncode == 0:
@@ -235,12 +241,12 @@ def block_ip_address(ip: str, reason: str) -> dict:
 
     priority = _next_nsg_priority(nsg, _rg())
     proc = subprocess.run(
-        ["az", "network", "nsg", "rule", "create", "-g", _rg(),
+        [AZ, "network", "nsg", "rule", "create", "-g", _rg(),
          "--nsg-name", nsg, "--name", f"Deny-{ip.replace('.', '-')}",
          "--priority", str(priority), "--source-address-prefixes", ip,
          "--destination-port-ranges", "*", "--access", "Deny",
          "--direction", "Inbound", "--protocol", "*", "-o", "json"],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True, text=True, check=False, timeout=120,
     )
     if proc.returncode != 0:
         return {"status": "FAILED", "action": action, "error": proc.stderr.strip()}
@@ -260,9 +266,9 @@ def isolate_node(resource_name: str, reason: str) -> dict:
 
     # Gate 3: resolve the resource INSIDE our own RG and verify before write.
     proc = subprocess.run(
-        ["az", "resource", "list", "-g", rg, "--name", resource_name,
+        [AZ, "resource", "list", "-g", rg, "--name", resource_name,
          "--query", "[0].id", "-o", "tsv"],
-        capture_output=True, text=True, timeout=60,
+        capture_output=True, text=True, check=False, timeout=60,
     )
     rid = proc.stdout.strip()
     if proc.returncode != 0 or not rid:
@@ -273,9 +279,9 @@ def isolate_node(resource_name: str, reason: str) -> dict:
                 "detail": "resolved resource is outside this squadron's RG — refused"}
 
     proc = subprocess.run(
-        ["az", "resource", "update", "--ids", rid,
+        [AZ, "resource", "update", "--ids", rid,
          "--set", "tags.criticalOrbit=isolated", "tags.isolationReason=" + reason[:64]],
-        capture_output=True, text=True, timeout=60,
+        capture_output=True, text=True, check=False, timeout=60,
     )
     if proc.returncode != 0:
         return {"status": "FAILED", "action": action, "error": proc.stderr.strip()}

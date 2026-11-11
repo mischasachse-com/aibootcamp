@@ -136,6 +136,10 @@ charges while provisioned — tear down when done.
 | `POST /chat` returns `no context retrieved` | index not populated | run the standard lab's `02_index_flight_manuals.py` first |
 | Env var typos | config drift | copy values from the repo-root `.env`; never invent endpoints |
 | Wrong image in ACA | `--image-tag`/`--day` mix-up | re-run the deploy script — it updates the app in place |
+| `az acr build` crashes with `UnicodeEncodeError` (Windows) | the az CLI's build-log streaming can't encode Docker output to the console codepage | the script already passes `--no-logs`; the remote build still runs to completion — check `az acr task list-runs` |
+| `--registry-identity must be an identity resource ID` (Git Bash) | MSYS2 rewrites `/subscriptions/...` args into `C:/Program Files/Git/...` Windows paths | fixed in the script via `MSYS_NO_PATHCONV=1` on commands that pass ARM IDs |
+| Code change not live after redeploy | same image tag → no new revision → old container keeps running | fixed: the script pins the image digest in `az containerapp update` |
+| `... is not fully defined` pydantic error in `/assess` | lab module imported via importlib was missing from `sys.modules` | fixed in `day2/app/main.py` (`sys.modules[name] = mod` before `exec_module`) |
 
 ## Cost note
 

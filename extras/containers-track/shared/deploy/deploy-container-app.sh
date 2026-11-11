@@ -51,6 +51,16 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 # shellcheck source=../../../../scripts/lib/common.sh
 . "${REPO_ROOT}/scripts/lib/common.sh"
 
+# az -o tsv from extension modules (e.g. `az identity`) emits CRLF on Windows;
+# a captured \r corrupts resource IDs passed to later commands. Strip it.
+az_tsv() { "$@" | tr -d '\r'; }
+
+# Git Bash (MSYS2) rewrites any argument starting with '/' into a Windows path
+# (C:/Program Files/Git/...), which silently corrupts ARM resource IDs passed
+# to --user-assigned / --registry-identity / --scope. Disable conversion only
+# for those commands — the acr-build context path below MUST keep converting.
+az_np() { MSYS_NO_PATHCONV=1 az "$@"; }
+
 TEAM="" RG="" DAY="day1" IMAGE_TAG="" APP_NAME="" LOCATION=""
 ENV_FILE="${REPO_ROOT}/.env" SKIP_RBAC=0
 
@@ -73,7 +83,7 @@ done
 
 command -v az >/dev/null 2>&1 || corbit_die "'az' not found — install Azure CLI."
 az account show >/dev/null 2>&1 || corbit_die "Not signed in. Run 'az login'."
-SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
+SUBSCRIPTION_ID="$(az_tsv az account show --query id -o tsv)"
 
 [[ -f "${REPO_ROOT}/extras/containers-track/${DAY}/app/main.py" ]] \
   || corbit_die "No app at extras/containers-track/${DAY}/app/ — invalid --day '${DAY}'."
@@ -88,7 +98,7 @@ corbit_assert_rg_convention "${RG}"
 tid="${RG##*sq}"
 az group show -n "${RG}" >/dev/null 2>&1 \
   || corbit_die "${RG} does not exist — run scripts/setup-squadron.sh --team ${tid} first."
-LOCATION="${LOCATION:-$(az group show -n "${RG}" --query location -o tsv)}"
+LOCATION="${LOCATION:-$(az_tsv az group show -n "${RG}" --query location -o tsv)}"
 IMAGE_TAG="${IMAGE_TAG:-${DAY}-latest}"
 APP_NAME="${APP_NAME:-ca-corbit-${DAY}-sq${tid}}"
 
@@ -126,10 +136,13 @@ else
 fi
 
 # Remote build — the Dockerfile lives in the repo; context is the repo root.
+# --no-logs: on Windows the az CLI's log *streaming* crashes on non-cp1252
+# build output (colorama UnicodeEncodeError) while the remote build keeps
+# running. Skip the stream; the command still waits for completion.
 corbit_info "Building image in ACR (context: repo root, DAY=${DAY}) ..."
 az acr build --registry "${ACR_NAME}" --image "${APP_NAME}:${IMAGE_TAG}" \
   --file extras/containers-track/shared/Dockerfile \
-  --build-arg "DAY=${DAY}" "${REPO_ROOT}"
+  --build-arg "DAY=${DAY}" --no-logs "${REPO_ROOT}"
 corbit_ok "Image pushed: ${IMAGE_FQN}"
 
 # ------------------------------------------------------- managed identity ----
@@ -139,9 +152,9 @@ else
   az identity create -n "${IDENTITY_NAME}" -g "${RG}" -l "${LOCATION}" --output none
   corbit_ok "Identity ${IDENTITY_NAME} created."
 fi
-IDENTITY_ID="$(az identity show -n "${IDENTITY_NAME}" -g "${RG}" --query id -o tsv)"
-IDENTITY_PRINCIPAL="$(az identity show -n "${IDENTITY_NAME}" -g "${RG}" --query principalId -o tsv)"
-IDENTITY_CLIENT="$(az identity show -n "${IDENTITY_NAME}" -g "${RG}" --query clientId -o tsv)"
+IDENTITY_ID="$(az_tsv az identity show -n "${IDENTITY_NAME}" -g "${RG}" --query id -o tsv)"
+IDENTITY_PRINCIPAL="$(az_tsv az identity show -n "${IDENTITY_NAME}" -g "${RG}" --query principalId -o tsv)"
+IDENTITY_CLIENT="$(az_tsv az identity show -n "${IDENTITY_NAME}" -g "${RG}" --query clientId -o tsv)"
 
 # ------------------------------------------------------------ containerapp ---
 az extension show --name containerapp >/dev/null 2>&1 \
@@ -169,11 +182,16 @@ ENV_VARS=(
 
 if az containerapp show -n "${APP_NAME}" -g "${RG}" >/dev/null 2>&1; then
   corbit_info "Updating existing Container App ${APP_NAME} ..."
-  az containerapp update -n "${APP_NAME}" -g "${RG}" \
-    --image "${IMAGE_FQN}" --set-env-vars "${ENV_VARS[@]}" --output none
+  # Same tag -> no template diff -> no new revision -> old image keeps running.
+  # Pin the immutable digest so every rebuild rolls out a fresh revision.
+  DIGEST="$(az_tsv az acr repository show -n "${ACR_NAME}" -g "${RG}" \
+    --image "${APP_NAME}:${IMAGE_TAG}" --query digest -o tsv)"
+  az_np containerapp update -n "${APP_NAME}" -g "${RG}" \
+    --image "${ACR_NAME}.azurecr.io/${APP_NAME}@${DIGEST}" \
+    --set-env-vars "${ENV_VARS[@]}" --output none
 else
   corbit_info "Creating Container App ${APP_NAME} (external ingress :8000, 0-1 replicas) ..."
-  az containerapp create -n "${APP_NAME}" -g "${RG}" \
+  az_np containerapp create -n "${APP_NAME}" -g "${RG}" \
     --environment "${ENV_NAME}" \
     --image "${IMAGE_FQN}" \
     --user-assigned "${IDENTITY_ID}" \
@@ -192,7 +210,7 @@ corbit_ok "Container App deployed."
 # self-assign RBAC.
 assign_role() { # <role name> <resource id>
   local role="$1" scope="$2"
-  if az role assignment create \
+  if az_np role assignment create \
       --assignee-object-id "${IDENTITY_PRINCIPAL}" \
       --assignee-principal-type ServicePrincipal \
       --role "${role}" --scope "${scope}" --output none 2>/dev/null; then
@@ -208,10 +226,10 @@ assign_role() { # <role name> <resource id>
 if [[ "${SKIP_RBAC}" -eq 1 ]]; then
   corbit_info "--skip-rbac: role assignments skipped."
 else
-  ACR_ID="$(az acr show -n "${ACR_NAME}" -g "${RG}" --query id -o tsv)"
-  AIS_ID="$(az resource list -g "${RG}" --resource-type Microsoft.CognitiveServices/accounts \
+  ACR_ID="$(az_tsv az acr show -n "${ACR_NAME}" -g "${RG}" --query id -o tsv)"
+  AIS_ID="$(az_tsv az resource list -g "${RG}" --resource-type Microsoft.CognitiveServices/accounts \
     --query "[?kind=='AIServices'].id | [0]" -o tsv)"
-  SEARCH_ID="$(az resource list -g "${RG}" --resource-type Microsoft.Search/searchServices \
+  SEARCH_ID="$(az_tsv az resource list -g "${RG}" --resource-type Microsoft.Search/searchServices \
     --query "[0].id" -o tsv)"
   assign_role "AcrPull" "${ACR_ID}"
   [[ -n "${AIS_ID}" ]] && assign_role "Cognitive Services OpenAI User" "${AIS_ID}" \
@@ -221,7 +239,7 @@ else
 fi
 
 # -------------------------------------------------------------------- done ---
-FQDN="$(az containerapp show -n "${APP_NAME}" -g "${RG}" \
+FQDN="$(az_tsv az containerapp show -n "${APP_NAME}" -g "${RG}" \
   --query properties.configuration.ingress.fqdn -o tsv)"
 echo ""
 echo "============================================================"

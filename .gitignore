@@ -23,6 +23,9 @@ env/
 .coverage
 htmlcov/
 
+# Bicep build artifact (az bicep build writes the compiled ARM next to the source)
+day1/infra/main.json
+
 # Generated lab artifacts (untrusted model output — review locally, never commit)
 day2/generated/
 *.remediation.bicep

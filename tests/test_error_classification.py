@@ -29,8 +29,8 @@ def _openai_exc(cls, status):
 
 
 def test_not_logged_in_is_not_authorized_bug(mod):
-    from azure.identity import CredentialUnavailableError
     from azure.core.exceptions import ClientAuthenticationError
+    from azure.identity import CredentialUnavailableError
 
     assert mod.classify_error(CredentialUnavailableError("no chain")) == "no_login"
     # THE historical bug: DAC raises ClientAuthenticationError when the user

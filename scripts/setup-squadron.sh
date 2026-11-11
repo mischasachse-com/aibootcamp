@@ -33,6 +33,11 @@
 #                         :Type suffix (GUID:Group). Use with --assign-roles
 #                         when directory-read rights are unavailable.
 #   --name-seed STRING    Perturb deterministic names on DNS-name collision.
+#   --chat-model NAME     Chat model to deploy (default: gpt-4.1). Use when the
+#                         default model has no GlobalStandard quota in the
+#                         target region — check trainer/preflight-trainer.sh.
+#   --chat-version VER    Chat model version (default: template's). Required
+#                         whenever --chat-model is overridden.
 #   --yes                 Skip the pre-deploy confirmation prompt.
 #   -h, --help            Show this help.
 #
@@ -54,7 +59,7 @@ DEFAULT_LOCATION="swedencentral"
 RG_PREFIX="rg-corbit-sq"
 
 TEAM="" LOCATION="$DEFAULT_LOCATION" MEMBERS_FILE="" NAME_SEED="" ASSUME_YES=0
-ASSIGN_ROLES=0 MEMBER_OIDS_RAW=""
+ASSIGN_ROLES=0 MEMBER_OIDS_RAW="" CHAT_MODEL="" CHAT_VERSION=""
 
 usage() { corbit_usage "$0" "${1:-0}"; }
 
@@ -67,11 +72,17 @@ while [[ $# -gt 0 ]]; do
     --members-file)       MEMBERS_FILE="${2:?--members-file needs a value}"; shift 2 ;;
     --member-object-ids)  MEMBER_OIDS_RAW="${MEMBER_OIDS_RAW:+${MEMBER_OIDS_RAW},}${2:?needs value}"; shift 2 ;;
     --name-seed)          NAME_SEED="${2:?--name-seed needs a value}"; shift 2 ;;
+    --chat-model)         CHAT_MODEL="${2:?--chat-model needs a value}"; shift 2 ;;
+    --chat-version)       CHAT_VERSION="${2:?--chat-version needs a value}"; shift 2 ;;
     --yes|-y)             ASSUME_YES=1; shift ;;
     -h|--help)            usage 0 ;;
     *)                    echo "Unknown option: $1" >&2; usage 1 ;;
   esac
 done
+
+if [[ -n "$CHAT_MODEL" && -z "$CHAT_VERSION" ]]; then
+  corbit_die "--chat-model requires --chat-version (the template default is gpt-4.1's version)."
+fi
 
 # -------------------------------------------------------------- prerequisites --
 for tool in az jq; do
@@ -177,14 +188,19 @@ corbit_ok "Resource group ready."
 # error (e.g. StorageAccountAlreadyTaken) is surfaced with --name-seed retry
 # guidance in the failure handler below.
 PRINCIPALS_JSON="$(corbit_principals_json PRINCIPALS)"
+# az CLI parses "1" as an integer, which ARM does NOT coerce to bool true —
+# the bicep param needs a literal true/false or the flag silently deploys off.
+ASSIGN_ROLES_BOOL=false; [[ "$ASSIGN_ROLES" -eq 1 ]] && ASSIGN_ROLES_BOOL=true
 corbit_info "Running deployment what-if (preflight validation, no changes) ..."
 WHATIF_ERR="$(mktemp)"
 if ! az deployment group what-if \
     --resource-group "$RG_NAME" \
     --template-file "$BICEP_FILE" \
     --parameters "teamNumber=${TEAM_NUM}" "location=${LOCATION}" \
-      "assignDataPlaneRoles=${ASSIGN_ROLES}" "principals=${PRINCIPALS_JSON}" \
+      "assignDataPlaneRoles=${ASSIGN_ROLES_BOOL}" "principals=${PRINCIPALS_JSON}" \
       ${NAME_SEED:+nameSeed="$NAME_SEED"} \
+      ${CHAT_MODEL:+chatModelName="$CHAT_MODEL"} \
+      ${CHAT_VERSION:+chatModelVersion="$CHAT_VERSION"} \
     --no-pretty-print --output none 2>"$WHATIF_ERR"; then
   cat "$WHATIF_ERR" >&2
   corbit_warn "What-if reported problems — the deployment may still work, but watch"
@@ -213,8 +229,10 @@ if ! az deployment group create \
     --name "$DEPLOY_NAME" \
     --template-file "$BICEP_FILE" \
     --parameters "teamNumber=${TEAM_NUM}" "location=${LOCATION}" \
-      "assignDataPlaneRoles=${ASSIGN_ROLES}" "principals=${PRINCIPALS_JSON}" \
+      "assignDataPlaneRoles=${ASSIGN_ROLES_BOOL}" "principals=${PRINCIPALS_JSON}" \
       ${NAME_SEED:+"nameSeed=${NAME_SEED}"} \
+      ${CHAT_MODEL:+"chatModelName=${CHAT_MODEL}"} \
+      ${CHAT_VERSION:+"chatModelVersion=${CHAT_VERSION}"} \
     --output none; then
   corbit_warn "Deployment failed. Common causes:"
   corbit_warn "  * Storage/KV/Search name collision  -> retry with --name-seed <rand>"

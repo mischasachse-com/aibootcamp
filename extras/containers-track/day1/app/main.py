@@ -141,6 +141,7 @@ def chat(req: ChatRequest):
         from azure.identity import DefaultAzureCredential
         from azure.search.documents import SearchClient
         from azure.search.documents.models import VectorizedQuery
+
         from common.openai_client import get_openai_client
 
         credential = DefaultAzureCredential()
@@ -170,7 +171,7 @@ def chat(req: ChatRequest):
         }
         try:
             results = list(search.search(**kwargs))
-        except Exception as exc:  # noqa: BLE001 — semantic quota fallback path
+        except Exception as exc:
             msg = str(exc).lower()
             if "semantic" in msg and any(
                 k in msg for k in ("quota", "billing", "disabled", "capacity")

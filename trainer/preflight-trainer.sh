@@ -155,8 +155,12 @@ min_headroom = None
 blocking = 0
 for model in models:
     # Usage names look like "OpenAI.GlobalStandard.gpt-4.1" — suffix match.
+    # Batch/Provisioned SKUs cannot host the lab's interactive deployments,
+    # so their quota entries must not count as usable headroom.
     hits = [e for e in entries
-            if e.get('name', {}).get('value', '').lower().endswith(model.lower())]
+            if e.get('name', {}).get('value', '').lower().endswith(model.lower())
+            and 'batch' not in e['name']['value'].lower()
+            and 'provisioned' not in e['name']['value'].lower()]
     if not hits:
         print(f'  [WARN] no usage-quota entry ending in "{model}" — '
               'unknown; --probe is the reliable check', flush=True)
@@ -177,7 +181,8 @@ for model in models:
                   f'(headroom {head}k TPM < need ~{need}k for {teams} squadrons)',
                   flush=True)
             blocking += 1
-print(f'__RESULT__ {blocking} {min_headroom if min_headroom is not None else -1}')
+# int(): bash arithmetic in the caller cannot parse floats like 350.0.
+print(f'__RESULT__ {blocking} {int(min_headroom) if min_headroom is not None else -1}')
 PY
 )"
     quota_rc=$?

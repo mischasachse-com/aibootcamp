@@ -29,7 +29,7 @@ from pydantic import BaseModel, Field
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from dotenv import load_dotenv  # noqa: E402
+from dotenv import load_dotenv
 
 load_dotenv(REPO_ROOT / ".env")
 
@@ -78,6 +78,7 @@ def main() -> None:
         sys.exit(2)
 
     from azure.identity import DefaultAzureCredential
+
     from common.openai_client import get_openai_client
 
     credential = DefaultAzureCredential()

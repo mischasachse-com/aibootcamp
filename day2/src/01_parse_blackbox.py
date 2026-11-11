@@ -163,7 +163,7 @@ def load_telemetry(path: Path) -> tuple[dict, list[dict], dict]:
         pass
 
     records, dropped = extract_objects(cleaned)
-    meta_match = re.search(r'"capture"\s*:\s*\{(.*?)\}', cleaned, re.S)
+    meta_match = re.search(r'"capture"\s*:\s*\{(.*?)\}', cleaned, re.DOTALL)
     meta = {}
     if meta_match:
         try:
@@ -195,7 +195,8 @@ def detect_anomalies(records: list[dict]) -> list[dict]:
         seq = rec.get("seq", "?")
         station = rec.get("station", "unknown")
 
-        def add(kind: str, detail: str, severity: str) -> None:
+        def add(kind: str, detail: str, severity: str,
+                seq: object = seq, station: str = station) -> None:
             findings.append({"seq": seq, "station": station, "kind": kind,
                              "severity": severity, "detail": detail})
 
