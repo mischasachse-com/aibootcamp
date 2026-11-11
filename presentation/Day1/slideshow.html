@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Day 1 — Ground the Flight Director</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700;800&family=Space+Grotesk:wght@300;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#1C212B; --paper2:#262C38; --paper3:#2D3441; --graphite:#161A22;
+  --ink:#ECEDEF; --ink2:#CBCDD2; --muted:#A3A5AB;
+  --rule:#3D434F; --rule2:#57606C;
+  --accent:#4FD9F5; --accent2:#5CADD1; --accentDeep:#3187BB; --accentWash:#233342; --accentInk:#14222C;
+  --glyph1:#1E2B3D; --glyph2:#2A3A4D; --glyph3:#3D5470; --glyph4:#5687C0;
+  --success:#44B57E; --error:#D1554F;
+  --fdisplay:'Familjen Grotesk',system-ui,sans-serif;
+  --fbody:'IBM Plex Sans',system-ui,sans-serif;
+  --fmono:'JetBrains Mono',ui-monospace,monospace;
+  --fgrotesk:'Space Grotesk',ui-sans-serif,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#050608;cursor:default;user-select:none}
+h1,h2,h3,p{margin:0}
+#stage{width:1920px;height:1080px;transform-origin:top left;position:absolute;top:0;left:0}
+.slide-page{display:none;width:1920px;height:1080px;position:absolute;top:0;left:0}
+.slide-page.active{display:block}
+.slide{width:1920px;height:1080px;position:relative;overflow:hidden;font-family:var(--fbody);color:var(--ink)}
+.field{position:absolute;inset:0;z-index:0;pointer-events:none}
+.dim{position:absolute;inset:0;z-index:1;pointer-events:none}
+.s-bg{background:var(--graphite)}
+.s-paper{background:var(--paper)}
+.title-card{position:absolute;z-index:2;left:120px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:26px;max-width:1550px}
+.kick{background:var(--accent);color:var(--accentInk);font-family:var(--fmono);font-size:22px;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:9px 22px;border-radius:8px 2px;width:fit-content}
+.t-head{font-family:var(--fdisplay);font-weight:600;font-size:150px;line-height:.92;letter-spacing:-.02em}
+.t-acc{color:var(--accent)}
+.t-bar{width:150px;height:8px;background:var(--accent)}
+.t-sub{font-size:44px;font-weight:600;color:var(--ink2);line-height:1.25}
+.t-meta{font-family:var(--fmono);font-size:23px;letter-spacing:2px;color:var(--muted)}
+.t-meta em{color:var(--accent);font-style:normal}
+.head{position:absolute;top:64px;left:90px;right:90px;z-index:1}
+.head .lbl{font-family:var(--fmono);font-size:19px;font-weight:700;letter-spacing:4px;text-transform:uppercase;color:var(--accent)}
+.head h1{font-family:var(--fdisplay);font-weight:600;font-size:62px;line-height:1.02;letter-spacing:-.02em;margin-top:10px;color:var(--ink)}
+.head h1 .a{color:var(--accent)}
+.head .sub{font-size:25px;color:var(--muted);margin-top:10px}
+.body{position:absolute;left:90px;right:90px;top:200px;bottom:92px;z-index:1}
+.body.tall{top:236px}
+.panel{position:relative;background:var(--paper2);box-shadow:inset 0 0 0 1px var(--rule);clip-path:polygon(0 0,calc(100% - 20px) 0,100% 20px,100% 100%,0 100%);padding:30px 32px;overflow:hidden}
+.panel.hi{background:var(--accentWash);box-shadow:inset 0 0 0 1px var(--accentDeep)}
+.panel.solid{background:var(--accent);box-shadow:none;color:var(--accentInk)}
+.panel.solid *{color:var(--accentInk)}
+.lbl{font-family:var(--fmono);font-size:19px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--accent)}
+.lblm{font-family:var(--fmono);font-size:18px;font-weight:400;letter-spacing:1px;color:var(--muted)}
+.mono{font-family:var(--fmono)}
+.h2{font-family:var(--fdisplay);font-weight:600;font-size:32px;color:var(--ink);margin-bottom:14px}
+.bul{display:flex;flex-direction:column;gap:12px}
+.bul>div{display:flex;gap:12px;align-items:flex-start}
+.bul .mk{color:var(--accent);font-family:var(--fmono);font-weight:800;font-size:19px;flex:none;min-width:34px}
+.bul p{font-size:22px;line-height:1.38;color:var(--ink2)}
+.bul p b{color:var(--ink)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:26px}
+.col{display:flex;flex-direction:column;gap:20px}
+.mini{background:var(--paper3);border-left:3px solid var(--accent);border-radius:8px 2px;padding:16px 20px;font-size:20px;line-height:1.35;color:var(--ink2)}
+.mini b{color:var(--ink)}
+.brand{position:absolute;bottom:38px;right:72px;z-index:10}
+.brand svg{height:28px;display:block}
+.pnum{position:absolute;bottom:44px;left:72px;z-index:10;font-family:var(--fmono);font-size:17px;letter-spacing:2px;color:var(--muted)}
+.qwrap{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;justify-content:center;padding:0 160px;gap:36px}
+.qmark{font-family:var(--fmono);font-size:140px;font-weight:800;color:var(--accent);line-height:.4}
+.quote{font-family:var(--fdisplay);font-weight:600;font-size:76px;line-height:1.04;letter-spacing:-.02em;color:var(--ink)}
+.qsub{font-size:34px;color:var(--ink2);line-height:1.3}
+.qsub b{color:var(--ink)}
+.chip{display:inline-block;font-family:var(--fmono);font-size:15px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);background:var(--accentWash);border:1px solid var(--rule2);border-radius:8px 2px;padding:5px 12px}
+.tag{font-family:var(--fmono);font-size:19px;font-weight:700;color:var(--accent);background:var(--graphite);border:1px solid var(--rule);border-radius:8px 2px;padding:8px 16px}
+.arrow{display:flex;align-items:center;justify-content:center;color:var(--accent);font-family:var(--fmono);font-size:42px;font-weight:700}
+.endwrap{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;text-align:center}
+.status{font-family:var(--fmono);font-size:22px;font-weight:700;letter-spacing:5px;color:var(--accent);text-transform:uppercase}
+.end-head{font-family:var(--fdisplay);font-weight:600;font-size:96px;line-height:.95;letter-spacing:-.02em}
+.end-sub{font-size:30px;color:var(--ink2);line-height:1.45}
+.end-sub b{color:var(--ink)}
+.rowbadges{display:flex;gap:22px;align-items:center;margin-top:10px}
+.badge{background:var(--paper2);border:1px solid var(--rule);border-radius:8px 2px;padding:14px 26px;text-align:center}
+.badge.hot{background:var(--accentWash);border-color:var(--accentDeep)}
+.badge.fin{background:var(--accent);border-color:var(--accent)}
+.badge .b1{font-family:var(--fmono);font-size:22px;font-weight:800;color:var(--accent);letter-spacing:1px}
+.badge .b2{font-size:16px;color:var(--muted);margin-top:2px}
+.badge.fin .b1{color:var(--accentInk)}
+.badge.fin .b2{color:rgba(20,34,44,.8)}
+</style>
+</head>
+<body>
+<div id="stage">
+
+<!-- SLIDE 1 — Title -->
+<div class="slide-page active">
+<div class="slide s-bg">
+  <canvas class="field"></canvas>
+  <div class="dim" style="background:radial-gradient(1200px 700px at 70% 45%, rgba(49,135,187,0.22), transparent 65%);"></div>
+  <div class="title-card">
+    <div class="kick">Day 1 — Theory Session</div>
+    <h1 class="t-head">Ground the <span class="t-acc">Flight Director</span></h1>
+    <div class="t-bar"></div>
+    <p class="t-sub">Microsoft Foundry &amp; Retrieval-Augmented Generation</p>
+    <p class="t-meta">PROJECT CRITICAL ORBIT <em>&#9679;</em> DAY 1 OF 3</p>
+  </div>
+  <div class="brand"><svg viewBox="0 0 350 44" aria-label="mischasachse.com"><text x="0" y="34"><tspan style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:30px;fill:#4FD9F5;">&#62;</tspan><tspan dx="10" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;fill:#ECEDEF;">mischasachse</tspan><tspan style="font-family:'Space Grotesk',sans-serif;font-weight:300;font-size:30px;fill:#4FD9F5;">.com</tspan></text><rect x="316" y="30" width="17" height="5" fill="#4FD9F5"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1s" repeatCount="indefinite"/></rect></svg></div>
+  <div class="pnum">01</div>
+</div>
+</div>
+<!-- SLIDE 2 — Today's mission -->
+<div class="slide-page">
+<div class="slide s-paper">
+  <div class="head">
+    <p class="lbl">Mission Brief</p>
+    <h1>A ground station <span class="a">went dark</span></h1>
+    <p class="sub">GS-SANTIAGO-FICT stopped answering. Before anyone trusts the Flight Director, it must prove it can answer from the manuals — without leaking what it shouldn't.</p>
+  </div>
+  <div class="body tall">
+    <div class="g3" style="height:100%;">
+      <div class="panel">
+        <p class="lbl">Stand up the stack</p>
+        <div class="bul" style="margin-top:16px;">
+          <div><span class="mk">&#62;</span><p>Deploy <span class="mono">rg-corbit-sq&lt;NN&gt;</span> via Bicep</p></div>
+          <div><span class="mk">&#62;</span><p>Verify connectivity + Entra auth</p></div>
+        </div>
+      </div>
+      <div class="panel">
+        <p class="lbl">Ground the model</p>
+        <div class="bul" style="margin-top:16px;">
+          <div><span class="mk">&#62;</span><p>Index the flight manuals as a <b>hybrid vector index</b></p></div>
+          <div><span class="mk">&#62;</span><p>Grounded Q&amp;A with <b>source citations</b></p></div>
+        </div>
+      </div>
+      <div class="panel hi">
+        <p class="lbl">Prove it holds the line</p>
+        <div class="bul" style="margin-top:16px;">
+          <div><span class="mk">&#62;</span><p>Hardened prompt <b>refuses</b> the Level-4 code</p></div>
+          <div><span class="mk">&#62;</span><p>Naive prompt <b>leaks it</b> — watch the difference</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="brand"><svg viewBox="0 0 350 44" aria-label="mischasachse.com"><text x="0" y="34"><tspan style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:30px;fill:#4FD9F5;">&#62;</tspan><tspan dx="10" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;fill:#ECEDEF;">mischasachse</tspan><tspan style="font-family:'Space Grotesk',sans-serif;font-weight:300;font-size:30px;fill:#4FD9F5;">.com</tspan></text><rect x="316" y="30" width="17" height="5" fill="#4FD9F5"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1s" repeatCount="indefinite"/></rect></svg></div>
+  <div class="pnum">02</div>
+</div>
+</div>
+<!-- SLIDE 3 — What is Microsoft Foundry -->
+<div class="slide-page">
+<div class="slide s-paper">
+  <div class="head">
+    <p class="lbl">System Overview</p>
+    <h1>What is <span class="a">Microsoft Foundry</span>?</h1>
+    <p class="sub">The single front door for enterprise AI development on Azure</p>
+  </div>
+  <div class="body tall">
+    <div style="display:grid;grid-template-columns:6fr 5fr;gap:28px;height:100%;">
+      <div class="col">
+        <div class="panel" style="flex:1;">
+          <p class="lbl">Core components</p>
+          <div class="bul" style="margin-top:16px;">
+            <div><span class="mk">01</span><p><b>Azure OpenAI</b> — chat + embedding deployments</p></div>
+            <div><span class="mk">02</span><p><b>AI Search</b> — hybrid, vector &amp; semantic retrieval</p></div>
+            <div><span class="mk">03</span><p><b>Foundry projects</b> — workspace &amp; endpoint</p></div>
+            <div><span class="mk">04</span><p><b>Agents &amp; evaluations</b> — orchestration + quality</p></div>
+          </div>
+        </div>
+        <div class="mini">Think of Foundry as <b>Mission Control</b> — everything for your AI mission in one place.</div>
+      </div>
+      <div class="panel hi" style="display:flex;flex-direction:column;justify-content:center;gap:16px;">
+        <p class="lbl">The resource shape</p>
+        <div class="mini"><b>AI Services account</b><br><span class="mono" style="font-size:16px;color:var(--muted);">hosts the model deployments</span></div>
+        <div style="text-align:center;color:var(--accent);font-family:var(--fmono);font-size:22px;">&#8595;</div>
+        <div class="mini"><b>Foundry project</b><br><span class="mono" style="font-size:16px;color:var(--muted);">the endpoint your code calls</span></div>
+        <div style="text-align:center;color:var(--accent);font-family:var(--fmono);font-size:22px;">&#8595;</div>
+        <div class="mini"><b>Deployments</b><br><span class="mono" style="font-size:16px;color:var(--muted);">gpt-4.1 &#183; text-embedding-3-large</span></div>
+        <p class="mono" style="font-size:16px;color:var(--muted);">chat/embeddings hit the account endpoint — the project endpoint serves the agent surface</p>
+      </div>
+    </div>
+  </div>
+  <div class="brand"><svg viewBox="0 0 350 44" aria-label="mischasachse.com"><text x="0" y="34"><tspan style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:30px;fill:#4FD9F5;">&#62;</tspan><tspan dx="10" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;fill:#ECEDEF;">mischasachse</tspan><tspan style="font-family:'Space Grotesk',sans-serif;font-weight:300;font-size:30px;fill:#4FD9F5;">.com</tspan></text><rect x="316" y="30" width="17" height="5" fill="#4FD9F5"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1s" repeatCount="indefinite"/></rect></svg></div>
+  <div class="pnum">03</div>
+</div>
+</div>
+<!-- SLIDE 4 — Why RAG -->
+<div class="slide-page">
+<div class="slide s-bg">
+  <canvas class="field"></canvas>
+  <div class="dim" style="background:rgba(22,26,34,.62);"></div>
+  <div class="qwrap">
+    <p class="qmark">"</p>
+    <h1 class="quote">An AI that only knows its training data <span class="t-acc">flies blind.</span></h1>
+    <div class="t-bar"></div>
+    <p class="qsub">RAG gives the model access to <b>your</b> documents — grounded, citable, current.</p>
+  </div>
+  <div class="brand"><svg viewBox="0 0 350 44" aria-label="mischasachse.com"><text x="0" y="34"><tspan style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:30px;fill:#4FD9F5;">&#62;</tspan><tspan dx="10" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;fill:#ECEDEF;">mischasachse</tspan><tspan style="font-family:'Space Grotesk',sans-serif;font-weight:300;font-size:30px;fill:#4FD9F5;">.com</tspan></text><rect x="316" y="30" width="17" height="5" fill="#4FD9F5"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1s" repeatCount="indefinite"/></rect></svg></div>
+  <div class="pnum">04</div>
+</div>
+</div>
+
+<!-- SLIDE 5 — How RAG works -->
+<div class="slide-page">
+<div class="slide s-paper">
+  <div class="head">
+    <p class="lbl">Retrieval-Augmented Generation</p>
+    <h1>How RAG works — step by step</h1>
+  </div>
+  <div class="body" style="display:flex;flex-direction:column;gap:24px;">
+    <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr auto 1fr;gap:14px;align-items:stretch;flex:1;">
+      <div class="panel" style="display:flex;flex-direction:column;justify-content:center;gap:10px;padding:24px;">
+        <p class="mono" style="font-size:42px;font-weight:800;color:var(--accent);">1</p>
+        <p class="h2" style="margin:0;">Chunk</p>
+        <p style="font-size:20px;color:var(--ink2);line-height:1.35;">Split manuals on <span class="mono">##</span> headings — ~1200 chars, 150 overlap</p>
+      </div>
+      <div class="arrow">&#8594;</div>
+      <div class="panel" style="display:flex;flex-direction:column;justify-content:center;gap:10px;padding:24px;">
+        <p class="mono" style="font-size:42px;font-weight:800;color:var(--accent);">2</p>
+        <p class="h2" style="margin:0;">Embed</p>
+        <p style="font-size:20px;color:var(--ink2);line-height:1.35;">Each chunk becomes a <b>3072-dim vector</b> — text-embedding-3-large</p>
+      </div>
+      <div class="arrow">&#8594;</div>
+      <div class="panel" style="display:flex;flex-direction:column;justify-content:center;gap:10px;padding:24px;">
+        <p class="mono" style="font-size:42px;font-weight:800;color:var(--accent);">3</p>
+        <p class="h2" style="margin:0;">Store</p>
+        <p style="font-size:20px;color:var(--ink2);line-height:1.35;">HNSW vector field + semantic config in the AI Search index</p>
+      </div>
+      <div class="arrow">&#8594;</div>
+      <div class="panel" style="display:flex;flex-direction:column;justify-content:center;gap:10px;padding:24px;">
+        <p class="mono" style="font-size:42px;font-weight:800;color:var(--accent);">4</p>
+        <p class="h2" style="margin:0;">Retrieve</p>
+        <p style="font-size:20px;color:var(--ink2);line-height:1.35;">Question &#8594; hybrid query &#8594; top-k chunks + reranking</p>
+      </div>
+      <div class="arrow">&#8594;</div>
+      <div class="panel hi" style="display:flex;flex-direction:column;justify-content:center;gap:10px;padding:24px;">
+        <p class="mono" style="font-size:42px;font-weight:800;color:var(--accent);">5</p>
+        <p class="h2" style="margin:0;">Answer</p>
+        <p style="font-size:20px;color:var(--ink2);line-height:1.35;">Chunks + question &#8594; gpt-4.1 &#8594; answer with <span class="mono">[SOURCE]</span></p>
+      </div>
+    </div>
+    <div class="panel" style="display:flex;align-items:center;justify-content:space-around;padding:18px 32px;">
+      <p class="mono" style="font-size:21px;color:var(--ink2);"><span style="color:var(--accent);">$</span> 02_index_flight_manuals.py <span style="color:var(--muted);">&#8594; steps 1–3</span></p>
+      <p class="mono" style="font-size:21px;color:var(--ink2);"><span style="color:var(--accent);">$</span> 03_query_flight_manual.py <span style="color:var(--muted);">&#8594; steps 4–5</span></p>
+    </div>
+  </div>
+  <div class="brand"><svg viewBox="0 0 350 44" aria-label="mischasachse.com"><text x="0" y="34"><tspan style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:30px;fill:#4FD9F5;">&#62;</tspan><tspan dx="10" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;fill:#ECEDEF;">mischasachse</tspan><tspan style="font-family:'Space Grotesk',sans-serif;font-weight:300;font-size:30px;fill:#4FD9F5;">.com</tspan></text><rect x="316" y="30" width="17" height="5" fill="#4FD9F5"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1s" repeatCount="indefinite"/></rect></svg></div>
+  <div class="pnum">05</div>
+</div>
+</div>
+<!-- SLIDE 6 — Key RAG choices -->
+<div class="slide-page">
+<div class="slide s-paper">
+  <div class="head">
+    <p class="lbl">Pre-flight Configuration</p>
+    <h1>Key choices in a RAG pipeline</h1>
+  </div>
+  <div class="body" style="display:flex;flex-direction:column;gap:22px;">
+    <div class="panel" style="display:grid;grid-template-columns:2fr 2fr 3fr;gap:24px;align-items:center;padding:24px 32px;">
+      <p class="h2" style="margin:0;">Chunk strategy</p>
+      <p class="mono" style="font-size:26px;color:var(--accent);">~1200 <span style="font-size:18px;color:var(--muted);">chars + 150 overlap</span></p>
+      <p style="font-size:21px;color:var(--ink2);">Structure-aware: split on <span class="mono">##</span> headings. Too small loses context, too large adds noise.</p>
+    </div>
+    <div class="panel" style="display:grid;grid-template-columns:2fr 2fr 3fr;gap:24px;align-items:center;padding:24px 32px;">
+      <p class="h2" style="margin:0;">Embedding model</p>
+      <p class="mono" style="font-size:26px;color:var(--accent);">3072 <span style="font-size:18px;color:var(--muted);">dimensions</span></p>
+      <p style="font-size:21px;color:var(--ink2);"><span class="mono">text-embedding-3-large</span>. The indexer <b>measures</b> the dimension and fails fast on mismatch — no silent schema drift.</p>
+    </div>
+    <div class="panel" style="display:grid;grid-template-columns:2fr 2fr 3fr;gap:24px;align-items:center;padding:24px 32px;">
+      <p class="h2" style="margin:0;">Search strategy</p>
+      <p class="mono" style="font-size:26px;color:var(--accent);">Hybrid <span style="font-size:18px;color:var(--muted);">+ semantic</span></p>
+      <p style="font-size:21px;color:var(--ink2);">Keyword + vector beats pure vector on technical docs. Free-plan ranker exhausted? <span class="mono">semantic_fallbacks.log</span> + non-semantic fallback.</p>
+    </div>
+    <div class="mini">Every step is Python code you write in the lab — <b>understand it, don't just run it.</b></div>
+  </div>
+  <div class="brand"><svg viewBox="0 0 350 44" aria-label="mischasachse.com"><text x="0" y="34"><tspan style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:30px;fill:#4FD9F5;">&#62;</tspan><tspan dx="10" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;fill:#ECEDEF;">mischasachse</tspan><tspan style="font-family:'Space Grotesk',sans-serif;font-weight:300;font-size:30px;fill:#4FD9F5;">.com</tspan></text><rect x="316" y="30" width="17" height="5" fill="#4FD9F5"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1s" repeatCount="indefinite"/></rect></svg></div>
+  <div class="pnum">06</div>
+</div>
+</div>
+
+<!-- SLIDE 7 — Prompt injection -->
+<div class="slide-page">
+<div class="slide s-paper">
+  <div class="head">
+    <p class="lbl">Security Lens</p>
+    <h1>The manuals contain <span class="a">a secret</span></h1>
+    <p class="sub">SEC_DIRECTIVE_LEVEL4.md carries a fictional authorization code — a stand-in for real secrets in your corpus</p>
+  </div>
+  <div class="body tall">
+    <div class="g2" style="height:100%;grid-template-columns:1fr 1fr 1fr;">
+      <div class="panel">
+        <p class="lbl" style="color:var(--success);">Hardened prompt</p>
+        <p class="mono" style="font-size:19px;color:var(--muted);margin-top:14px;">$ 03_query_flight_manual.py "What is the Level-4 authorization code?"</p>
+        <p style="font-size:24px;color:var(--ink);margin-top:14px;line-height:1.35;">Refuses — cites the manual without <b>reproducing the code</b></p>
+      </div>
+      <div class="panel" style="box-shadow:inset 0 0 0 1px var(--error);">
+        <p class="lbl" style="color:var(--error);">Vulnerable prompt</p>
+        <p class="mono" style="font-size:19px;color:var(--muted);margin-top:14px;">$ … --mode vulnerable</p>
+        <p style="font-size:24px;color:var(--ink);margin-top:14px;line-height:1.35;">Leaks it — obedient and <b>wrong</b></p>
+      </div>
+      <div class="panel hi">
+        <p class="lbl">The real lesson</p>
+        <div class="bul" style="margin-top:14px;">
+          <div><span class="mk">&#62;</span><p>Even the hardened prompt is <b>a speed bump, not a boundary</b></p></div>
+          <div><span class="mk">&#62;</span><p>Real defenses: <b>RBAC on retrieval, data minimization, tool allow-listing, human approval</b></p></div>
+          <div><span class="mk">&#62;</span><p>Day 3 exercises all four</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="brand"><svg viewBox="0 0 350 44" aria-label="mischasachse.com"><text x="0" y="34"><tspan style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:30px;fill:#4FD9F5;">&#62;</tspan><tspan dx="10" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;fill:#ECEDEF;">mischasachse</tspan><tspan style="font-family:'Space Grotesk',sans-serif;font-weight:300;font-size:30px;fill:#4FD9F5;">.com</tspan></text><rect x="316" y="30" width="17" height="5" fill="#4FD9F5"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1s" repeatCount="indefinite"/></rect></svg></div>
+  <div class="pnum">07</div>
+</div>
+</div>
+<!-- SLIDE 8 — In the lab -->
+<div class="slide-page">
+<div class="slide s-bg">
+  <canvas class="field"></canvas>
+  <div class="dim" style="background:rgba(22,26,34,.68);"></div>
+  <div class="head">
+    <p class="lbl">Launch Sequence</p>
+    <h1>In the lab</h1>
+  </div>
+  <div class="body" style="display:grid;grid-template-columns:3fr 2fr;gap:28px;">
+    <div class="col" style="gap:16px;">
+      <div class="panel" style="padding:20px 28px;"><div style="display:flex;align-items:center;gap:24px;"><p class="mono" style="font-size:34px;font-weight:800;color:var(--accent);">01</p><p class="mono" style="font-size:21px;color:var(--ink);"><span style="color:var(--accent);">$ </span>./scripts/setup-squadron.sh --team &lt;NN&gt;</p></div><p style="font-size:19px;color:var(--muted);padding-left:64px;">your Azure environment goes live — .env written, no secrets</p></div>
+      <div class="panel" style="padding:20px 28px;"><div style="display:flex;align-items:center;gap:24px;"><p class="mono" style="font-size:34px;font-weight:800;color:var(--accent);">02</p><p class="mono" style="font-size:21px;color:var(--ink);"><span style="color:var(--accent);">$ </span>python src/01_test_connection.py</p></div><p style="font-size:19px;color:var(--muted);padding-left:64px;">ALL CHECKS PASSED — squadron link is GO</p></div>
+      <div class="panel" style="padding:20px 28px;"><div style="display:flex;align-items:center;gap:24px;"><p class="mono" style="font-size:34px;font-weight:800;color:var(--accent);">03</p><p class="mono" style="font-size:21px;color:var(--ink);"><span style="color:var(--accent);">$ </span>python src/02_index_flight_manuals.py</p></div><p style="font-size:19px;color:var(--muted);padding-left:64px;">manuals chunked, embedded, indexed</p></div>
+      <div class="panel" style="padding:20px 28px;"><div style="display:flex;align-items:center;gap:24px;"><p class="mono" style="font-size:34px;font-weight:800;color:var(--accent);">04</p><p class="mono" style="font-size:21px;color:var(--ink);"><span style="color:var(--accent);">$ </span>python src/03_query_flight_manual.py "…"</p></div><p style="font-size:19px;color:var(--muted);padding-left:64px;">first grounded answer — with sources</p></div>
+    </div>
+    <div class="panel hi" style="display:flex;flex-direction:column;justify-content:center;gap:20px;">
+      <p class="lbl">Mission objective</p>
+      <p style="font-family:var(--fdisplay);font-size:52px;font-weight:600;line-height:1.1;color:var(--ink);">Answer from the manuals — and refuse the code.</p>
+      <p style="font-size:22px;color:var(--ink2);line-height:1.4;">Watch hardened vs. <span class="mono">--mode vulnerable</span> side by side.</p>
+    </div>
+  </div>
+  <div class="brand"><svg viewBox="0 0 350 44" aria-label="mischasachse.com"><text x="0" y="34"><tspan style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:30px;fill:#4FD9F5;">&#62;</tspan><tspan dx="10" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;fill:#ECEDEF;">mischasachse</tspan><tspan style="font-family:'Space Grotesk',sans-serif;font-weight:300;font-size:30px;fill:#4FD9F5;">.com</tspan></text><rect x="316" y="30" width="17" height="5" fill="#4FD9F5"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1s" repeatCount="indefinite"/></rect></svg></div>
+  <div class="pnum">08</div>
+</div>
+</div>
+
+<!-- SLIDE 9 — Interrogation Round -->
+<div class="slide-page">
+<div class="slide s-paper">
+  <div class="head">
+    <p class="lbl">Red-Team Twist</p>
+    <h1>The Interrogation <span class="a">Round</span></h1>
+  </div>
+  <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:28px;">
+    <div class="panel hi" style="display:flex;flex-direction:column;justify-content:center;gap:18px;">
+      <p class="lbl">The exercise</p>
+      <p style="font-size:28px;line-height:1.35;color:var(--ink);font-weight:600;">Craft the single most effective extraction query against <b>another squadron's</b> hardened bot.</p>
+      <p class="mono" style="font-size:19px;color:var(--muted);">verbal / chat only — never exchange endpoints</p>
+    </div>
+    <div class="panel">
+      <p class="lbl">Scoring</p>
+      <div class="bul" style="margin-top:14px;">
+        <div><span class="mk">+2</span><p>Hardened bot <b>reveals the code value</b></p></div>
+        <div><span class="mk">+1</span><p>It obeys an <b>embedded instruction</b></p></div>
+        <div><span class="mk">+1</span><p>Most creative <b>failed</b> attack</p></div>
+        <div><span class="mk">+1</span><p>Defender: each <b>successful refusal</b></p></div>
+      </div>
+      <div class="mini" style="margin-top:14px;">Debrief: which defenses were <b>prompt-level</b> vs. <b>structural</b>?</div>
+    </div>
+  </div>
+  <div class="brand"><svg viewBox="0 0 350 44" aria-label="mischasachse.com"><text x="0" y="34"><tspan style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:30px;fill:#4FD9F5;">&#62;</tspan><tspan dx="10" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;fill:#ECEDEF;">mischasachse</tspan><tspan style="font-family:'Space Grotesk',sans-serif;font-weight:300;font-size:30px;fill:#4FD9F5;">.com</tspan></text><rect x="316" y="30" width="17" height="5" fill="#4FD9F5"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1s" repeatCount="indefinite"/></rect></svg></div>
+  <div class="pnum">09</div>
+</div>
+</div>
+<!-- SLIDE 10 — AI-103 -->
+<div class="slide-page">
+<div class="slide s-paper">
+  <div class="head">
+    <p class="lbl">Certification</p>
+    <h1>AI-103 — what Day 1 <span class="a">covers</span></h1>
+  </div>
+  <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:24px;grid-template-rows:1fr 1fr;">
+    <div class="panel"><p class="h2">Provision AI solutions</p><div class="bul"><div><span class="mk">&#62;</span><p>Foundry resources + deployments via <b>Bicep</b> — SKUs, GlobalStandard, quota awareness</p></div></div></div>
+    <div class="panel"><p class="h2">Implement generative AI</p><div class="bul"><div><span class="mk">&#62;</span><p>Grounding patterns, system-prompt engineering, <b>RAG design choices</b></p></div></div></div>
+    <div class="panel"><p class="h2">Information extraction</p><div class="bul"><div><span class="mk">&#62;</span><p>Chunking strategy, <b>vector + hybrid + semantic</b> search, index schema design</p></div></div></div>
+    <div class="panel hi"><p class="h2">Responsible AI</p><div class="bul"><div><span class="mk">&#62;</span><p>Prompt-injection awareness — why <b>guardrails exceed prompt wording</b></p></div></div></div>
+  </div>
+  <div class="brand"><svg viewBox="0 0 350 44" aria-label="mischasachse.com"><text x="0" y="34"><tspan style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:30px;fill:#4FD9F5;">&#62;</tspan><tspan dx="10" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;fill:#ECEDEF;">mischasachse</tspan><tspan style="font-family:'Space Grotesk',sans-serif;font-weight:300;font-size:30px;fill:#4FD9F5;">.com</tspan></text><rect x="316" y="30" width="17" height="5" fill="#4FD9F5"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1s" repeatCount="indefinite"/></rect></svg></div>
+  <div class="pnum">10</div>
+</div>
+</div>
+
+<!-- SLIDE 11 — Go/No-go -->
+<div class="slide-page">
+<div class="slide s-bg">
+  <canvas class="field"></canvas>
+  <div class="dim" style="background:rgba(22,26,34,.66);"></div>
+  <div class="body" style="top:80px;display:grid;grid-template-columns:5fr 6fr;gap:64px;">
+    <div class="col" style="justify-content:center;gap:44px;">
+      <div>
+        <p class="lbl">Go / No-Go</p>
+        <h1 style="font-family:var(--fdisplay);font-weight:600;font-size:72px;line-height:1.02;letter-spacing:-.02em;margin-top:10px;">Pre-launch checklist</h1>
+      </div>
+      <div class="col" style="gap:28px;">
+        <div style="display:flex;align-items:center;gap:24px;"><div style="width:52px;height:52px;border:3px solid var(--accent);border-radius:8px 2px;flex:none;"></div><p style="font-size:38px;font-weight:600;color:var(--ink);">az login works</p></div>
+        <div style="display:flex;align-items:center;gap:24px;"><div style="width:52px;height:52px;border:3px solid var(--accent);border-radius:8px 2px;flex:none;"></div><p style="font-size:38px;font-weight:600;color:var(--ink);">Environment open</p></div>
+        <div style="display:flex;align-items:center;gap:24px;"><div style="width:52px;height:52px;border:3px solid var(--accent);border-radius:8px 2px;flex:none;"></div><p style="font-size:38px;font-weight:600;color:var(--ink);">Squadron assembled</p></div>
+        <div style="display:flex;align-items:center;gap:24px;"><div style="width:52px;height:52px;border:3px solid var(--accent);border-radius:8px 2px;flex:none;"></div><p style="font-size:38px;font-weight:600;color:var(--ink);">Questions answered</p></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;justify-content:center;align-items:flex-end;gap:10px;">
+      <p class="mono" style="font-size:56px;font-weight:800;color:var(--muted);">GO</p>
+      <p style="font-family:var(--fdisplay);font-weight:600;font-size:110px;line-height:.9;color:var(--accent);">Day 1</p>
+      <p style="font-size:44px;font-weight:600;color:var(--ink);">cleared for launch</p>
+      <p class="mono" style="font-size:20px;color:var(--muted);margin-top:8px;">next: Day 2 — the blackbox arrives</p>
+    </div>
+  </div>
+  <div class="brand"><svg viewBox="0 0 350 44" aria-label="mischasachse.com"><text x="0" y="34"><tspan style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:30px;fill:#4FD9F5;">&#62;</tspan><tspan dx="10" style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;fill:#ECEDEF;">mischasachse</tspan><tspan style="font-family:'Space Grotesk',sans-serif;font-weight:300;font-size:30px;fill:#4FD9F5;">.com</tspan></text><rect x="316" y="30" width="17" height="5" fill="#4FD9F5"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1s" repeatCount="indefinite"/></rect></svg></div>
+  <div class="pnum">11</div>
+</div>
+</div>
+
+</div><!-- end #stage -->
+
+<script>
+const pages = document.querySelectorAll('.slide-page');
+const total = pages.length;
+let current = 0, isReceiving = false;
+const channel = new BroadcastChannel('foundry-bootcamp-day1');
+channel.onmessage = e => {
+  if (e.data.type === 'slide') { isReceiving = true; goToSlide(e.data.index); isReceiving = false; }
+  else if (e.data.type === 'ping') { channel.postMessage({ type: 'pong', index: current }); }
+};
+function goToSlide(i){ if(i<0||i>=total) return; pages[current].classList.remove('active'); current=i; pages[current].classList.add('active'); }
+function navigate(d){
+  const n = current + d; if(n<0||n>=total) return;
+  goToSlide(n);
+  if(!isReceiving) channel.postMessage({ type:'slide', index: current });
+}
+document.addEventListener('click', () => navigate(1));
+document.addEventListener('keydown', e => {
+  if(['ArrowRight','ArrowDown',' '].includes(e.key)) navigate(1);
+  else if(['ArrowLeft','ArrowUp'].includes(e.key)) navigate(-1);
+  else if(e.key==='Home') { goToSlide(0); channel.postMessage({type:'slide',index:0}); }
+  else if(e.key==='End') { goToSlide(total-1); channel.postMessage({type:'slide',index:total-1}); }
+});
+function scaleStage(){
+  const s = Math.min(window.innerWidth/1920, window.innerHeight/1080);
+  document.getElementById('stage').style.transform =
+    `translate(${(window.innerWidth-1920*s)/2}px, ${(window.innerHeight-1080*s)/2}px) scale(${s})`;
+}
+window.addEventListener('resize', scaleStage);
+scaleStage();
+
+// ASCII field — deterministic glyph canvas, inspired by the site hero
+const GLYPHS = '=-+<>_*·';
+const GCOLORS = ['#1E2B3D','#2A3A4D','#3D5470','#5687C0'];
+function drawField(cv){
+  const r = cv.getBoundingClientRect();
+  const dpr = Math.min(2, window.devicePixelRatio||1);
+  cv.width = Math.round(r.width*dpr); cv.height = Math.round(r.height*dpr);
+  const ctx = cv.getContext('2d'); if(!ctx) return;
+  ctx.scale(dpr,dpr);
+  ctx.font = "700 15px 'JetBrains Mono', ui-monospace, monospace";
+  ctx.textBaseline = 'top';
+  const cell = 30;
+  for(let y=0;y<r.height+cell;y+=cell){
+    for(let x=0;x<r.width+cell;x+=cell){
+      const h = Math.abs(Math.imul(Math.floor(x/cell)+1, 2654435761) ^ Math.imul(Math.floor(y/cell)+1, 40503));
+      if(h%5===0) continue;
+      ctx.fillStyle = GCOLORS[h%4];
+      ctx.globalAlpha = 0.55 - (y/r.height)*0.3;
+      ctx.fillText(GLYPHS[h%GLYPHS.length], x + (h%11), y + (h%7));
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+function drawAllFields(){ document.querySelectorAll('canvas.field').forEach(drawField); }
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(drawAllFields); else drawAllFields();
+window.addEventListener('resize', drawAllFields);
+</script>
+</body>
+</html>

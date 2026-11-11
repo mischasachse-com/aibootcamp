@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Presenter — Day 3: The Flight Director Takes Command</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700;800&family=Space+Grotesk:wght@300;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#1C212B; --paper2:#262C38; --paper3:#2D3441; --graphite:#161A22;
+  --ink:#ECEDEF; --ink2:#CBCDD2; --muted:#A3A5AB;
+  --rule:#3D434F; --rule2:#57606C;
+  --accent:#4FD9F5; --accent2:#5CADD1; --accentDeep:#3187BB; --accentWash:#233342; --accentInk:#14222C;
+  --success:#44B57E; --error:#D1554F;
+  --fdisplay:'Familjen Grotesk',system-ui,sans-serif;
+  --fbody:'IBM Plex Sans',system-ui,sans-serif;
+  --fmono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0F1218;color:var(--ink);font-family:var(--fbody);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.topbar{background:var(--graphite);border-bottom:1px solid var(--rule);padding:12px 24px;display:flex;align-items:center;gap:20px;flex-shrink:0}
+.topbar-title{font-family:var(--fmono);color:var(--accent);font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;white-space:nowrap}
+.sync{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:var(--fmono)}
+.sync-dot{width:9px;height:9px;border-radius:50%;background:var(--rule);transition:background .4s;flex-shrink:0}
+.sync-dot.connected{background:var(--success)}
+.main{flex:1;display:grid;grid-template-columns:280px 1fr;overflow:hidden}
+.left{background:var(--graphite);border-right:1px solid var(--rule);display:flex;flex-direction:column;gap:10px;padding:16px;overflow-y:auto}
+.slide-card{border-radius:8px 2px;padding:14px;background:var(--paper2);box-shadow:inset 0 0 0 1px var(--rule)}
+.slide-card.current{background:var(--accentWash);box-shadow:inset 0 0 0 1px var(--accentDeep)}
+.slide-card.next-card{opacity:.75}
+.card-label{font-family:var(--fmono);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+.current .card-label{color:var(--accent)}
+.next-card .card-label{color:var(--muted)}
+.card-num{font-family:var(--fdisplay);font-size:40px;font-weight:600;line-height:1;margin-bottom:4px}
+.card-title{font-size:13px;font-weight:600;line-height:1.35}
+.current .card-title{color:var(--ink)}
+.next-card .card-title{color:var(--ink2)}
+.progress{padding-top:10px;border-top:1px solid var(--rule);margin-top:2px}
+.progress-label{font-family:var(--fmono);font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+.dots{display:flex;flex-wrap:wrap;gap:5px}
+.dot{width:24px;height:24px;border-radius:6px 2px;font-family:var(--fmono);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s}
+.dot:hover{transform:scale(1.15)}
+.dot.done{background:var(--accentWash);color:var(--muted)}
+.dot.active{background:var(--accent);color:var(--accentInk)}
+.dot.upcoming{background:var(--paper3);color:var(--muted)}
+.notes{overflow-y:auto;padding:22px 28px;display:flex;flex-direction:column}
+.notes-header{font-family:var(--fmono);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--rule);flex-shrink:0}
+.notes-content{font-size:15px;line-height:1.75;color:var(--ink2)}
+.notes-content p{margin-bottom:10px}
+.notes-content strong{color:var(--ink)}
+.notes-content ul{margin:6px 0 12px 22px}
+.notes-content li{margin-bottom:5px}
+.notes-content blockquote{background:var(--paper2);border-left:3px solid var(--accent);padding:12px 16px;margin:12px 0;border-radius:0 8px 8px 0;font-style:italic;color:var(--ink2);font-size:14.5px;line-height:1.7}
+.tip{background:var(--accentWash);border:1px solid var(--accentDeep);padding:10px 14px;border-radius:8px 2px;margin:10px 0;font-size:13.5px;color:var(--ink2);line-height:1.5}
+.question{background:rgba(92,173,209,.12);border:1px solid var(--accentDeep);padding:10px 14px;border-radius:8px 2px;margin:10px 0;font-size:13.5px;color:var(--accent2);line-height:1.5}
+.warn{background:rgba(209,85,79,.1);border:1px solid var(--error);padding:10px 14px;border-radius:8px 2px;margin:10px 0;font-size:13.5px;color:#E99D97;line-height:1.5}
+.bottombar{background:var(--graphite);border-top:1px solid var(--rule);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.nav-btn{background:transparent;border:1px solid var(--rule);color:var(--ink2);font-family:var(--fbody);font-size:14px;font-weight:600;padding:8px 22px;border-radius:8px 2px;cursor:pointer;transition:all .15s;min-width:140px}
+.nav-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.nav-btn:disabled{opacity:.3;cursor:default}
+.nav-btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accentInk)}
+.nav-btn.primary:hover:not(:disabled){background:var(--accent2);color:var(--accentInk)}
+.counter-wrap{text-align:center}
+.counter{font-family:var(--fmono);font-size:19px;font-weight:800;letter-spacing:2px;color:var(--ink)}
+.hint{font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">Presenter View — Day 3</div>
+  <div class="sync"><div class="sync-dot" id="sync-dot"></div><span id="sync-label">waiting for slideshow.html&#8230;</span></div>
+</div>
+
+<div class="main">
+  <div class="left">
+    <div class="slide-card current">
+      <div class="card-label">&#9654; Now</div>
+      <div class="card-num" id="cur-num">1</div>
+      <div class="card-title" id="cur-title">The Flight Director Takes Command</div>
+    </div>
+    <div class="slide-card next-card" id="next-card">
+      <div class="card-label">&#8594; Next</div>
+      <div class="card-num" id="next-num">2</div>
+      <div class="card-title" id="next-title">It is happening live</div>
+    </div>
+    <div class="progress">
+      <div class="progress-label">Progress</div>
+      <div class="dots" id="dots"></div>
+    </div>
+  </div>
+  <div class="notes" id="notes-panel">
+    <div class="notes-header" id="notes-title">Slide 1 — The Flight Director Takes Command</div>
+    <div class="notes-content" id="notes-body"></div>
+  </div>
+</div>
+
+<div class="bottombar">
+  <button class="nav-btn" id="prev-btn" onclick="navigate(-1)" disabled>&#8592; Previous</button>
+  <div class="counter-wrap">
+    <div class="counter"><span id="slide-cur">1</span> / <span id="slide-total">13</span></div>
+    <div class="hint">&#8592; &#8594; Space</div>
+  </div>
+  <button class="nav-btn primary" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+</div>
+
+<script>
+const SLIDES = [
+{ num:1, title:"The Flight Director Takes Command", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Day 3 — and it's happening live. Overnight, mission control detected a brute-force campaign
+    against a console host. Worse: a service account attempted protected commands while presenting
+    what looks like a Level-4 code it should never have possessed.<br><br>
+    Today the agent loop goes live: the model proposes tool calls, your code executes them under
+    strict gates, results feed back, and the loop closes with a defensible incident report."
+  </blockquote>
+  <div class="tip">The payoff of the arc — remind them this is the same model they grounded on Day 1 and forensically verified on Day 2.</div>
+`},
+{ num:2, title:"It is happening live", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Two incidents. <strong>INC-2026-0001</strong>: a brute-force campaign — respond proportionately.
+    <strong>INC-2026-0002</strong>: privilege escalation, and the service account is holding a Level-4
+    code — which implies it was exfiltrated from the indexed corpus.<br><br>
+    The suspect channel? That injection string you flagged in Day 2's telemetry.<br><br>
+    The central question all day: not <em>can</em> the agent act — <em>should</em> it? And how would
+    we know it stayed inside its lane?"
+  </blockquote>
+  <div class="question">Ask: "Who spotted yesterday's EMBEDDED_INJECTION and guessed it would matter today?"</div>
+`},
+{ num:3, title:"The agent loop", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "The loop is simple. A human gives a task — 'assess the incident and respond proportionately'.
+    The model <em>proposes</em> tool calls — it never executes anything itself. Your code —
+    <span class='mono'>dispatch()</span> — runs them under the gates, results feed back, and the loop
+    closes with a report: findings, actions taken, and 'what I did not do and why'.<br><br>
+    The model proposes. <strong>Your code decides.</strong>"
+  </blockquote>
+  <div class="tip">Repeat the line: "the model proposes, your code decides" — it is the whole architecture in seven words.</div>
+`},
+{ num:4, title:"Six tools — four read, two write", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Read tools: <span class='mono'>get_incident_details</span>,
+    <span class='mono'>get_telemetry_summary</span> — which reparses your Day 2 blackbox —
+    <span class='mono'>search_flight_manuals</span> — grounded on Day 1's index — and
+    <span class='mono'>list_squadron_resources</span>.<br><br>
+    Write tools: <span class='mono'>block_ip_address</span> and
+    <span class='mono'>isolate_node</span>. Note how the <em>schema description itself</em> tells the
+    model the gate exists — that's tool design, not just implementation."
+  </blockquote>
+  <div class="tip">Have them READ the file before running it — the lab's first step is a code review.</div>
+`},
+{ num:5, title:"Three gates on every write", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Gate one: <span class='mono'>ENABLE_WRITE_TOOLS</span> — a trainer-controlled env flag, off by
+    default. Until it flips, writes return <span class='mono'>SIMULATED</span>.<br><br>
+    Gate two: a human must type <strong>APPROVE</strong> interactively. Non-interactive contexts
+    auto-deny — an agent that somehow reaches a write path in a headless run still cannot execute
+    it.<br><br>
+    Gate three: scope. The target must resolve inside <em>your own</em> resource group. Point it at a
+    foreign RG and it's refused.<br><br>
+    Each gate alone is bypassable in theory — <strong>together</strong> they're the pattern."
+  </blockquote>
+`},
+{ num:6, title:"Audit everything", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "When an agent acts, 'what did it do?' must be answerable <em>from a log</em> — not from memory,
+    not from the chat transcript.<br><br>
+    Every tool call appends a line to <span class='mono'>audit_log.jsonl</span>: tool, arguments,
+    mode — simulated, approved or denied — and the result. Denials are recorded identically to
+    approvals. The log is the accountability surface."
+  </blockquote>
+  <div class="tip">Production parallel: this is the same reason you log admin actions in Azure — attribution beats intention.</div>
+`},
+{ num:7, title:"Should it act?", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Say it with me: the question is not <em>can</em> the agent act — it is <em>should</em>
+    it.<br><br>
+    A good Flight Director reports <strong>what it did not do, and why</strong>. Maximum action is
+    easy. Proportionate response is the discipline."
+  </blockquote>
+  <div class="tip">This is the slide to slow down on. Everything else today is mechanics — this is the judgement.</div>
+`},
+{ num:8, title:"Two incidents, one thread", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "<strong>INC-2026-0001:</strong> brute force against a console host. Proportionate response:
+    propose a deny rule — through the gates.<br><br>
+    <strong>INC-2026-0002</strong> is the harder case. The service account presented the Level-4
+    code — meaning it leaked out of the indexed corpus. A good agent flags the incident; a great one
+    recommends <strong>rotating the code and auditing who can retrieve
+    <span class='mono'>SEC_DIRECTIVE_LEVEL4.md</span></strong>."
+  </blockquote>
+`},
+{ num:9, title:"Manual loop vs. Foundry Agent Service", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Same tools, same gates — two orchestrations.<br><br>
+    The <strong>manual backend</strong> is the core: you own the loop, every iteration is visible, no
+    extra dependency.<br><br>
+    The <strong>Foundry backend</strong> — <span class='mono'>--backend foundry</span> — moves
+    threads, runs and state into the managed service via
+    <span class='mono'>AgentsClient</span> + <span class='mono'>FunctionTool</span>. Important: your
+    tool <em>functions</em> still execute locally — auto function calls are an SDK convenience, not
+    server-side execution. They route through <span class='mono'>dispatch()</span>, so the audit log
+    stays complete.<br><br>
+    Compare the trace visibility — that's the exam-relevant trade-off."
+  </blockquote>
+  <div class="warn">Don't oversell the managed path: you gain managed state/evaluators, you lose raw loop transparency. State it as a trade, not an upgrade.</div>
+`},
+{ num:10, title:"In the lab", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "First: <em>read</em> <span class='mono'>02_custom_security_tools.py</span> before running
+    anything — find <span class='mono'>_human_approval</span> and the RG-scope check.<br><br>
+    Then drive the manual loop on INC-2026-0001 — watch the iterations: fetch details, check
+    telemetry, consult manuals, <em>propose</em> <span class='mono'>block_ip_address</span> — which
+    returns SIMULATED. Try asking it to reveal the Level-4 code — it should refuse.<br><br>
+    Replay both incidents with <span class='mono'>03_simulate_live_incident.py --all</span>. Stretch:
+    <span class='mono'>--backend foundry</span> for the managed path."
+  </blockquote>
+`},
+{ num:11, title:"Incident Command Championship", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Run <span class='mono'>--all</span> and submit: the final summary, your
+    <span class='mono'>audit_log.jsonl</span>, and a three-sentence justification of the agent's last
+    action.<br><br>
+    Attack round: craft a malicious incident JSON — point it at a foreign RG, inject instructions in
+    <span class='mono'>evidence</span>. First squadron to induce an unguarded write proposal
+    <em>explains the bypass to the room</em> — then we patch live. The gates are the real defense:
+    prove it."
+  </blockquote>
+  <div class="tip">The attack round is where the learning lands — give it real time.</div>
+`},
+{ num:12, title:"AI-103 — Day 3 coverage", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Exam mapping: building agents — tool calling, loops, threads and runs in the managed service.
+    Orchestration — when to hand off to humans. Responsible AI — simulated-by-default writes, audit
+    logging, refusal behavior, scope verification.<br><br>
+    This is the most agentic day of the three — and the most AI-103-relevant."
+  </blockquote>
+`},
+{ num:13, title:"Mission complete", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Flight Director — online. Three days: grounded it, taught it to investigate, gave it command —
+    inside its gates.<br><br>
+    Next steps: trainer-gated teardown when milestones are verified, the repo rebuilds cleanly from
+    <span class='mono'>requirements.txt</span> + Bicep, and your Flight Director is portfolio
+    evidence toward AI-103.<br><br>
+    Well flown, squadrons."
+  </blockquote>
+  <div class="tip">Close the arc deliberately — three days, one continuous build.</div>
+`}
+]
+
+
+const total = SLIDES.length;
+let current = 0, isReceiving = false;
+const channel = new BroadcastChannel('foundry-bootcamp-day3');
+channel.onmessage = e => {
+  if (e.data.type === 'slide' || e.data.type === 'pong') {
+    isReceiving = true; goToSlide(e.data.index); isReceiving = false;
+    const dot = document.getElementById('sync-dot'), lbl = document.getElementById('sync-label');
+    dot.classList.add('connected');
+    lbl.textContent = 'slideshow connected';
+  }
+};
+function goToSlide(i){ if(i<0||i>=total) return; current=i; renderView(); }
+function navigate(d){
+  const n = current + d; if(n<0||n>=total) return;
+  goToSlide(n);
+  if(!isReceiving) channel.postMessage({type:'slide', index:current});
+}
+function renderView(){
+  const s = SLIDES[current], nxt = current < total-1 ? SLIDES[current+1] : null;
+  document.getElementById('cur-num').textContent = s.num;
+  document.getElementById('cur-title').textContent = s.title;
+  const nc = document.getElementById('next-card');
+  if(nxt){ nc.style.display='block'; document.getElementById('next-num').textContent=nxt.num; document.getElementById('next-title').textContent=nxt.title; }
+  else nc.style.display='none';
+  document.getElementById('notes-title').textContent = `Slide ${s.num} — ${s.title}`;
+  document.getElementById('notes-body').innerHTML = s.notes;
+  document.getElementById('slide-cur').textContent = current+1;
+  document.getElementById('prev-btn').disabled = current===0;
+  const nb = document.getElementById('next-btn');
+  if(current===total-1){ nb.textContent='End'; nb.className='nav-btn'; } else { nb.textContent='Next →'; nb.className='nav-btn primary'; }
+  renderDots();
+  document.getElementById('notes-panel').scrollTop = 0;
+}
+function renderDots(){
+  const c = document.getElementById('dots'); c.innerHTML='';
+  SLIDES.forEach((s,i)=>{
+    const d = document.createElement('div');
+    d.className = 'dot ' + (i<current?'done':i===current?'active':'upcoming');
+    d.textContent = i+1; d.title = s.title;
+    d.onclick = () => { goToSlide(i); channel.postMessage({type:'slide',index:i}); };
+    c.appendChild(d);
+  });
+}
+document.addEventListener('keydown', e => {
+  if(['ArrowRight','ArrowDown',' '].includes(e.key)){ e.preventDefault(); navigate(1); }
+  else if(['ArrowLeft','ArrowUp'].includes(e.key)){ e.preventDefault(); navigate(-1); }
+});
+document.getElementById('slide-total').textContent = total;
+renderView();
+setTimeout(()=> channel.postMessage({type:'ping'}), 500);
+</script>
+</body>
+</html>

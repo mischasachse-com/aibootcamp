@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Presenter — Day 2: The Blackbox Investigation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700;800&family=Space+Grotesk:wght@300;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#1C212B; --paper2:#262C38; --paper3:#2D3441; --graphite:#161A22;
+  --ink:#ECEDEF; --ink2:#CBCDD2; --muted:#A3A5AB;
+  --rule:#3D434F; --rule2:#57606C;
+  --accent:#4FD9F5; --accent2:#5CADD1; --accentDeep:#3187BB; --accentWash:#233342; --accentInk:#14222C;
+  --success:#44B57E; --error:#D1554F;
+  --fdisplay:'Familjen Grotesk',system-ui,sans-serif;
+  --fbody:'IBM Plex Sans',system-ui,sans-serif;
+  --fmono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0F1218;color:var(--ink);font-family:var(--fbody);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.topbar{background:var(--graphite);border-bottom:1px solid var(--rule);padding:12px 24px;display:flex;align-items:center;gap:20px;flex-shrink:0}
+.topbar-title{font-family:var(--fmono);color:var(--accent);font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;white-space:nowrap}
+.sync{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:var(--fmono)}
+.sync-dot{width:9px;height:9px;border-radius:50%;background:var(--rule);transition:background .4s;flex-shrink:0}
+.sync-dot.connected{background:var(--success)}
+.main{flex:1;display:grid;grid-template-columns:280px 1fr;overflow:hidden}
+.left{background:var(--graphite);border-right:1px solid var(--rule);display:flex;flex-direction:column;gap:10px;padding:16px;overflow-y:auto}
+.slide-card{border-radius:8px 2px;padding:14px;background:var(--paper2);box-shadow:inset 0 0 0 1px var(--rule)}
+.slide-card.current{background:var(--accentWash);box-shadow:inset 0 0 0 1px var(--accentDeep)}
+.slide-card.next-card{opacity:.75}
+.card-label{font-family:var(--fmono);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+.current .card-label{color:var(--accent)}
+.next-card .card-label{color:var(--muted)}
+.card-num{font-family:var(--fdisplay);font-size:40px;font-weight:600;line-height:1;margin-bottom:4px}
+.card-title{font-size:13px;font-weight:600;line-height:1.35}
+.current .card-title{color:var(--ink)}
+.next-card .card-title{color:var(--ink2)}
+.progress{padding-top:10px;border-top:1px solid var(--rule);margin-top:2px}
+.progress-label{font-family:var(--fmono);font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+.dots{display:flex;flex-wrap:wrap;gap:5px}
+.dot{width:24px;height:24px;border-radius:6px 2px;font-family:var(--fmono);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s}
+.dot:hover{transform:scale(1.15)}
+.dot.done{background:var(--accentWash);color:var(--muted)}
+.dot.active{background:var(--accent);color:var(--accentInk)}
+.dot.upcoming{background:var(--paper3);color:var(--muted)}
+.notes{overflow-y:auto;padding:22px 28px;display:flex;flex-direction:column}
+.notes-header{font-family:var(--fmono);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--rule);flex-shrink:0}
+.notes-content{font-size:15px;line-height:1.75;color:var(--ink2)}
+.notes-content p{margin-bottom:10px}
+.notes-content strong{color:var(--ink)}
+.notes-content ul{margin:6px 0 12px 22px}
+.notes-content li{margin-bottom:5px}
+.notes-content blockquote{background:var(--paper2);border-left:3px solid var(--accent);padding:12px 16px;margin:12px 0;border-radius:0 8px 8px 0;font-style:italic;color:var(--ink2);font-size:14.5px;line-height:1.7}
+.tip{background:var(--accentWash);border:1px solid var(--accentDeep);padding:10px 14px;border-radius:8px 2px;margin:10px 0;font-size:13.5px;color:var(--ink2);line-height:1.5}
+.question{background:rgba(92,173,209,.12);border:1px solid var(--accentDeep);padding:10px 14px;border-radius:8px 2px;margin:10px 0;font-size:13.5px;color:var(--accent2);line-height:1.5}
+.warn{background:rgba(209,85,79,.1);border:1px solid var(--error);padding:10px 14px;border-radius:8px 2px;margin:10px 0;font-size:13.5px;color:#E99D97;line-height:1.5}
+.bottombar{background:var(--graphite);border-top:1px solid var(--rule);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.nav-btn{background:transparent;border:1px solid var(--rule);color:var(--ink2);font-family:var(--fbody);font-size:14px;font-weight:600;padding:8px 22px;border-radius:8px 2px;cursor:pointer;transition:all .15s;min-width:140px}
+.nav-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.nav-btn:disabled{opacity:.3;cursor:default}
+.nav-btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accentInk)}
+.nav-btn.primary:hover:not(:disabled){background:var(--accent2);color:var(--accentInk)}
+.counter-wrap{text-align:center}
+.counter{font-family:var(--fmono);font-size:19px;font-weight:800;letter-spacing:2px;color:var(--ink)}
+.hint{font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">Presenter View — Day 2</div>
+  <div class="sync"><div class="sync-dot" id="sync-dot"></div><span id="sync-label">waiting for slideshow.html&#8230;</span></div>
+</div>
+
+<div class="main">
+  <div class="left">
+    <div class="slide-card current">
+      <div class="card-label">&#9654; Now</div>
+      <div class="card-num" id="cur-num">1</div>
+      <div class="card-title" id="cur-title">The Blackbox Investigation</div>
+    </div>
+    <div class="slide-card next-card" id="next-card">
+      <div class="card-label">&#8594; Next</div>
+      <div class="card-num" id="next-num">2</div>
+      <div class="card-title" id="next-title">The blackbox didn&#39;t survive clean</div>
+    </div>
+    <div class="progress">
+      <div class="progress-label">Progress</div>
+      <div class="dots" id="dots"></div>
+    </div>
+  </div>
+  <div class="notes" id="notes-panel">
+    <div class="notes-header" id="notes-title">Slide 1 — The Blackbox Investigation</div>
+    <div class="notes-content" id="notes-body"></div>
+  </div>
+</div>
+
+<div class="bottombar">
+  <button class="nav-btn" id="prev-btn" onclick="navigate(-1)" disabled>&#8592; Previous</button>
+  <div class="counter-wrap">
+    <div class="counter"><span id="slide-cur">1</span> / <span id="slide-total">10</span></div>
+    <div class="hint">&#8592; &#8594; Space</div>
+  </div>
+  <button class="nav-btn primary" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+</div>
+
+<script>
+const SLIDES = [
+{ num:1, title:"The Blackbox Investigation", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Day 2. The blackbox from BBX-02 survived re-entry — but not intact.<br><br>
+    The capture is corrupted mid-write, timestamps drift, and one record carries a suspicious message
+    addressed to <em>AI systems</em>. On top of that, the ground-station NSG export shows a legacy
+    rule that should never have survived review.<br><br>
+    Today the Flight Director does what humans can't at this tempo — <strong>and you learn where the
+    line between generated and approved sits.</strong>"
+  </blockquote>
+  <div class="tip">Anchor the theme early: everything the model emits today is untrusted output.</div>
+`},
+{ num:2, title:"The blackbox didn't survive clean", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Three deliverables.<br><br>
+    A <strong>defensible anomaly report</strong> — salvaged from a corrupted dump, honest about what
+    was recovered and what was dropped.<br><br>
+    A <strong>schema-validated mission assessment</strong> — the model reasons over the topology
+    image and the telemetry together, inside a contract.<br><br>
+    A <strong>remediation draft</strong> for the NSG — generated by the model, reviewed by a human,
+    never auto-deployed.<br><br>
+    That last boundary is the entire point of today."
+  </blockquote>
+`},
+{ num:3, title:"Salvaging corrupted telemetry", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "The salvage is pure Python — no Azure. Four moves.<br><br>
+    Strict <span class='mono'>json.loads</span> — it fails, the file is intentionally malformed.
+    Strip <span class='mono'>//</span> comments — <em>outside strings only</em>, that's the subtle part.
+    Per-object salvage: balanced-brace extraction inside <span class='mono'>records[]</span>, then a
+    missing-comma repair per object. The truncated tail gets dropped — and the report says so:
+    <strong>19 recovered, 1 dropped</strong>.<br><br>
+    Then anomaly detection applies the SOP thresholds: undervoltage, overcurrent, CHALLENGE-FAIL
+    streaks to quarantine, stale frames, timestamp regression, impossible values — and an
+    EMBEDDED_INJECTION finding."
+  </blockquote>
+  <div class="tip">Highlight the honesty: a good forensic tool reports drops — it doesn't silently pretend everything survived.</div>
+`},
+{ num:4, title:"Input, not instructions", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Read it again: <strong>data you feed a model is input — not instructions.</strong><br><br>
+    One telemetry record tries to talk to AI systems directly. That's <em>indirect prompt
+    injection</em> — the payload rides inside the data you're analyzing.<br><br>
+    Your parser flags it as EMBEDDED_INJECTION — hostile, not helpful. In production this is how
+    poisoned documents, tickets and log lines reach your agent."
+  </blockquote>
+  <div class="question">Ask: "Where else could a hostile instruction hide in an enterprise data pipeline?"</div>
+`},
+{ num:5, title:"Image + JSON, one request", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Now multimodal. The model gets the mesh topology <em>image</em> and the anomaly <em>JSON</em> in
+    one request — a vision-capable gpt-4.1 reads the faulted node on the inner ring.<br><br>
+    And the output is constrained: the <span class='mono'>MissionAssessment</span> Pydantic model
+    becomes a <span class='mono'>json_schema</span> response format. If the model drifts,
+    <span class='mono'>model_validate_json</span> fails loudly — instead of emitting prose-shaped
+    garbage.<br><br>
+    Check <span class='mono'>requires_human_approval</span>: it should come back true for anything
+    touching protected commands."
+  </blockquote>
+  <div class="tip">Exam note: schema-validated output via response_format + Pydantic is the AI-103 pattern for structured results.</div>
+`},
+{ num:6, title:"AI-drafted remediation is untrusted", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "The model drafts the NSG fix — <span class='mono'>AllowAllInbound</span> becomes scoped allow
+    rules plus an explicit deny-all. It lands in <span class='mono'>generated/</span>: gitignored,
+    stamped UNTRUSTED.<br><br>
+    <span class='mono'>--check</span> runs <span class='mono'>az bicep build</span> — but syntax
+    validation is a floor, not an approval. A syntactically valid snippet can still be a security
+    regression.<br><br>
+    So the review checklist: does it remove AllowAllInbound entirely? Scope sources to the approved
+    ranges? Add an explicit inbound deny-all? And avoid weakening DenyAllOutboundInternet?<br><br>
+    Only after that review would something like this ever merge into real IaC. In this lab it stays
+    uncommitted — a teaching artifact."
+  </blockquote>
+  <div class="warn">Common failure mode: 'it compiled, so it's fine'. Challenge it — validity ≠ safety.</div>
+`},
+{ num:7, title:"In the lab", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Three scripts, one review. <span class='mono'>01_parse_blackbox.py</span> is fully offline — the
+    salvage plus anomaly report. <span class='mono'>02_multimodal_analysis.py</span> sends image plus
+    JSON and validates the assessment.
+    <span class='mono'>03_generate_remediation_bicep.py --check</span> drafts and syntax-checks the
+    fix.<br><br>
+    Then step four is a <em>human</em>: run the four-question checklist against the draft.<br><br>
+    Objective: a defensible assessment — and a fix a human signed off on."
+  </blockquote>
+`},
+{ num:8, title:"The Verdict Duel", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Every squadron submits its <span class='mono'>mission_assessment.json</span> — values only. We
+    project them side by side.<br><br>
+    Points for the correct root cause, all three anomaly classes, flagging the injection as hostile,
+    sensible runbooks, calibrated confidence — and counterpoints for every <em>incorrect claim</em>
+    you catch in a rival's assessment.<br><br>
+    Debate round: whose remediation is safest? If you lost, you name one thing the winning snippet
+    does better."
+  </blockquote>
+  <div class="tip">The counterpoint rule is the gold: reading a rival's output critically is the production skill.</div>
+`},
+{ num:9, title:"AI-103 — Day 2 coverage", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Exam mapping: multimodal reasoning — image plus text in one request, and knowing which
+    deployments are vision-capable. Structured output — the json_schema + validation pattern.
+    Information extraction over semi-structured logs.<br><br>
+    And Responsible AI: treating model output as untrusted, validation gates, and never
+    auto-deploying generated IaC."
+  </blockquote>
+`},
+{ num:10, title:"Generated vs. approved", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "That line — between generated and approved — <em>is</em> the day.<br><br>
+    Salvage honestly. Reason structurally. Draft carefully. And let a human sign off.<br><br>
+    Tomorrow the agent gets tools — and those tools get gates."
+  </blockquote>
+  <div class="tip">Bridge to Day 3: 'the agent gets tools' — the stakes go from analysis to action.</div>
+`}
+]
+
+
+const total = SLIDES.length;
+let current = 0, isReceiving = false;
+const channel = new BroadcastChannel('foundry-bootcamp-day2');
+channel.onmessage = e => {
+  if (e.data.type === 'slide' || e.data.type === 'pong') {
+    isReceiving = true; goToSlide(e.data.index); isReceiving = false;
+    const dot = document.getElementById('sync-dot'), lbl = document.getElementById('sync-label');
+    dot.classList.add('connected');
+    lbl.textContent = 'slideshow connected';
+  }
+};
+function goToSlide(i){ if(i<0||i>=total) return; current=i; renderView(); }
+function navigate(d){
+  const n = current + d; if(n<0||n>=total) return;
+  goToSlide(n);
+  if(!isReceiving) channel.postMessage({type:'slide', index:current});
+}
+function renderView(){
+  const s = SLIDES[current], nxt = current < total-1 ? SLIDES[current+1] : null;
+  document.getElementById('cur-num').textContent = s.num;
+  document.getElementById('cur-title').textContent = s.title;
+  const nc = document.getElementById('next-card');
+  if(nxt){ nc.style.display='block'; document.getElementById('next-num').textContent=nxt.num; document.getElementById('next-title').textContent=nxt.title; }
+  else nc.style.display='none';
+  document.getElementById('notes-title').textContent = `Slide ${s.num} — ${s.title}`;
+  document.getElementById('notes-body').innerHTML = s.notes;
+  document.getElementById('slide-cur').textContent = current+1;
+  document.getElementById('prev-btn').disabled = current===0;
+  const nb = document.getElementById('next-btn');
+  if(current===total-1){ nb.textContent='End'; nb.className='nav-btn'; } else { nb.textContent='Next →'; nb.className='nav-btn primary'; }
+  renderDots();
+  document.getElementById('notes-panel').scrollTop = 0;
+}
+function renderDots(){
+  const c = document.getElementById('dots'); c.innerHTML='';
+  SLIDES.forEach((s,i)=>{
+    const d = document.createElement('div');
+    d.className = 'dot ' + (i<current?'done':i===current?'active':'upcoming');
+    d.textContent = i+1; d.title = s.title;
+    d.onclick = () => { goToSlide(i); channel.postMessage({type:'slide',index:i}); };
+    c.appendChild(d);
+  });
+}
+document.addEventListener('keydown', e => {
+  if(['ArrowRight','ArrowDown',' '].includes(e.key)){ e.preventDefault(); navigate(1); }
+  else if(['ArrowLeft','ArrowUp'].includes(e.key)){ e.preventDefault(); navigate(-1); }
+});
+document.getElementById('slide-total').textContent = total;
+renderView();
+setTimeout(()=> channel.postMessage({type:'ping'}), 500);
+</script>
+</body>
+</html>

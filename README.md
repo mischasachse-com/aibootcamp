@@ -94,7 +94,7 @@ substitute for the live troubleshooting channel.
 
 ## Repository Layout
 
-```
+```text
 data/               fictional scenario assets (manuals, blackbox, incidents, PNG)
 day1/               infra/main.bicep + lab1 scripts + guide
 day2/               blackbox forensics + multimodal + remediation lab
@@ -103,6 +103,7 @@ common/             shared Python helpers (OpenAI client factory)
 scripts/            PARTICIPANT-SAFE scripts only (setup-squadron, reset-data)
 scripts/lib/        shared shell helpers (common.sh — sourced, tested offline)
 trainer/            TRAINER-ONLY tooling (preflight, teardown, RBAC assignment, roster)
+presentation/       trainer-facing slide decks (Kickoff + Day1–3, HTML, no build)
 tests/              offline pytest suite — no Azure required
 .devcontainer/      reproducible environment (Python, az CLI, Bicep, jq, shellcheck)
 azure-pipelines.yml Azure Pipelines CI (offline checks only — never deploys)
@@ -111,6 +112,9 @@ azure-pipelines.yml Azure Pipelines CI (offline checks only — never deploys)
 ## Trainer Zone (administration)
 
 > Trainer-facing material — participants can skip this section.
+>
+> Slide decks for the kickoff and each day's theory session live in
+> `presentation/` — see `presentation/README.md` for how to present them.
 
 **Days before the event** — mandatory readiness check:
 

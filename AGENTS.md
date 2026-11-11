@@ -17,6 +17,8 @@ resource groups and build an AI "Flight Director" on Microsoft Foundry.
 - `scripts/` — **participant-safe** scripts (`setup-squadron.sh`, `reset-data.sh`)
 - `scripts/lib/` — shared shell helpers (`common.sh`, sourced — do not execute directly)
 - `trainer/` — **trainer-only** tooling (preflight, teardown, RBAC, roster)
+- `presentation/` — trainer-facing slide decks (Kickoff + Day1–3, self-contained
+  HTML, English, mischasachse.com brand — no timing/duration content)
 - `tests/` — offline pytest suite; no Azure access required
 - `data/` — fictional scenario assets; `telemetry_dump_corrupted.json` is
   intentionally malformed — do NOT "fix" it

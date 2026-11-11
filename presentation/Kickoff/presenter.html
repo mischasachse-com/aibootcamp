@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Presenter — Mission Briefing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700;800&family=Space+Grotesk:wght@300;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#1C212B; --paper2:#262C38; --paper3:#2D3441; --graphite:#161A22;
+  --ink:#ECEDEF; --ink2:#CBCDD2; --muted:#A3A5AB;
+  --rule:#3D434F; --rule2:#57606C;
+  --accent:#4FD9F5; --accent2:#5CADD1; --accentDeep:#3187BB; --accentWash:#233342; --accentInk:#14222C;
+  --success:#44B57E; --error:#D1554F;
+  --fdisplay:'Familjen Grotesk',system-ui,sans-serif;
+  --fbody:'IBM Plex Sans',system-ui,sans-serif;
+  --fmono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0F1218;color:var(--ink);font-family:var(--fbody);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.topbar{background:var(--graphite);border-bottom:1px solid var(--rule);padding:12px 24px;display:flex;align-items:center;gap:20px;flex-shrink:0}
+.topbar-title{font-family:var(--fmono);color:var(--accent);font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;white-space:nowrap}
+.sync{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:var(--fmono)}
+.sync-dot{width:9px;height:9px;border-radius:50%;background:var(--rule);transition:background .4s;flex-shrink:0}
+.sync-dot.connected{background:var(--success)}
+.main{flex:1;display:grid;grid-template-columns:280px 1fr;overflow:hidden}
+.left{background:var(--graphite);border-right:1px solid var(--rule);display:flex;flex-direction:column;gap:10px;padding:16px;overflow-y:auto}
+.slide-card{border-radius:8px 2px;padding:14px;background:var(--paper2);box-shadow:inset 0 0 0 1px var(--rule)}
+.slide-card.current{background:var(--accentWash);box-shadow:inset 0 0 0 1px var(--accentDeep)}
+.slide-card.next-card{opacity:.75}
+.card-label{font-family:var(--fmono);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+.current .card-label{color:var(--accent)}
+.next-card .card-label{color:var(--muted)}
+.card-num{font-family:var(--fdisplay);font-size:40px;font-weight:600;line-height:1;margin-bottom:4px}
+.card-title{font-size:13px;font-weight:600;line-height:1.35}
+.current .card-title{color:var(--ink)}
+.next-card .card-title{color:var(--ink2)}
+.progress{padding-top:10px;border-top:1px solid var(--rule);margin-top:2px}
+.progress-label{font-family:var(--fmono);font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+.dots{display:flex;flex-wrap:wrap;gap:5px}
+.dot{width:24px;height:24px;border-radius:6px 2px;font-family:var(--fmono);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s}
+.dot:hover{transform:scale(1.15)}
+.dot.done{background:var(--accentWash);color:var(--muted)}
+.dot.active{background:var(--accent);color:var(--accentInk)}
+.dot.upcoming{background:var(--paper3);color:var(--muted)}
+.notes{overflow-y:auto;padding:22px 28px;display:flex;flex-direction:column}
+.notes-header{font-family:var(--fmono);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--rule);flex-shrink:0}
+.notes-content{font-size:15px;line-height:1.75;color:var(--ink2)}
+.notes-content p{margin-bottom:10px}
+.notes-content strong{color:var(--ink)}
+.notes-content ul{margin:6px 0 12px 22px}
+.notes-content li{margin-bottom:5px}
+.notes-content blockquote{background:var(--paper2);border-left:3px solid var(--accent);padding:12px 16px;margin:12px 0;border-radius:0 8px 8px 0;font-style:italic;color:var(--ink2);font-size:14.5px;line-height:1.7}
+.tip{background:var(--accentWash);border:1px solid var(--accentDeep);padding:10px 14px;border-radius:8px 2px;margin:10px 0;font-size:13.5px;color:var(--ink2);line-height:1.5}
+.question{background:rgba(92,173,209,.12);border:1px solid var(--accentDeep);padding:10px 14px;border-radius:8px 2px;margin:10px 0;font-size:13.5px;color:var(--accent2);line-height:1.5}
+.warn{background:rgba(209,85,79,.1);border:1px solid var(--error);padding:10px 14px;border-radius:8px 2px;margin:10px 0;font-size:13.5px;color:#E99D97;line-height:1.5}
+.bottombar{background:var(--graphite);border-top:1px solid var(--rule);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.nav-btn{background:transparent;border:1px solid var(--rule);color:var(--ink2);font-family:var(--fbody);font-size:14px;font-weight:600;padding:8px 22px;border-radius:8px 2px;cursor:pointer;transition:all .15s;min-width:140px}
+.nav-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.nav-btn:disabled{opacity:.3;cursor:default}
+.nav-btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accentInk)}
+.nav-btn.primary:hover:not(:disabled){background:var(--accent2);color:var(--accentInk)}
+.counter-wrap{text-align:center}
+.counter{font-family:var(--fmono);font-size:19px;font-weight:800;letter-spacing:2px;color:var(--ink)}
+.hint{font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">Presenter View — Mission Briefing</div>
+  <div class="sync"><div class="sync-dot" id="sync-dot"></div><span id="sync-label">waiting for slideshow.html&#8230;</span></div>
+</div>
+
+<div class="main">
+  <div class="left">
+    <div class="slide-card current">
+      <div class="card-label">&#9654; Now</div>
+      <div class="card-num" id="cur-num">1</div>
+      <div class="card-title" id="cur-title">Project Critical Orbit</div>
+    </div>
+    <div class="slide-card next-card" id="next-card">
+      <div class="card-label">&#8594; Next</div>
+      <div class="card-num" id="next-num">2</div>
+      <div class="card-title" id="next-title">Welcome aboard, Flight Director</div>
+    </div>
+    <div class="progress">
+      <div class="progress-label">Progress</div>
+      <div class="dots" id="dots"></div>
+    </div>
+  </div>
+  <div class="notes" id="notes-panel">
+    <div class="notes-header" id="notes-title">Slide 1 — Project Critical Orbit</div>
+    <div class="notes-content" id="notes-body"></div>
+  </div>
+</div>
+
+<div class="bottombar">
+  <button class="nav-btn" id="prev-btn" onclick="navigate(-1)" disabled>&#8592; Previous</button>
+  <div class="counter-wrap">
+    <div class="counter"><span id="slide-cur">1</span> / <span id="slide-total">13</span></div>
+    <div class="hint">&#8592; &#8594; Space</div>
+  </div>
+  <button class="nav-btn primary" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+</div>
+
+<script>
+const SLIDES = [
+{ num:1, title:"Project Critical Orbit", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Welcome, everyone — in the room and remote.<br><br>
+    For the next three days you are not just attendees of a training. You are Flight Directors.
+    This Mission Briefing is the launch point of <strong>Project Critical Orbit</strong>: a three-day
+    bootcamp where you build a real AI agent on Microsoft Foundry — from zero to production-grade.<br><br>
+    You will ground it on flight manuals, teach it to dissect corrupted telemetry, and finally give it
+    tools — under strict gates — to respond to a live attack.<br><br>
+    Let's begin."
+  </blockquote>
+  <div class="tip">Let the title land for a beat before continuing — the visual does half the work.</div>
+`},
+{ num:2, title:"Welcome aboard, Flight Director", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Who is this for? Cloud and automation engineers, security and platform engineers, architects —
+    anyone moving from AI experiments to production AI.<br><br>
+    <strong>What you leave with:</strong> a working AI Flight Director agent — grounded, multimodal,
+    with gated tools — plus an isolated Azure stack you deployed yourself as idempotent Bicep.
+    And it maps to <strong>AI-103</strong>, so it doubles as exam preparation.<br><br>
+    <strong>Format:</strong> every day is a theory session plus a hands-on lab. You work in squadrons
+    of three to four — on-site or remote, the labs are identical. Each lab guide has checkpoints and
+    async notes, so falling behind is recoverable."
+  </blockquote>
+  <div class="question">Ask the room: "Who has already worked with Microsoft Foundry — and who is new to it?"</div>
+  <div class="tip">Calibrate pace based on the answer: fast for experienced groups, slower for first-timers.</div>
+`},
+{ num:3, title:"Ground control to Flight Director", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "The scenario: you are a squadron defending <strong>ORBITAL-NET</strong>, a fictional aerospace
+    ground-control network.<br><br>
+    <strong>Day 1:</strong> a ground station went dark. Before the blackbox even arrives, your Flight
+    Director must answer operational questions — grounded on the official flight manuals.<br><br>
+    <strong>Day 2:</strong> the recovered blackbox is corrupted — and one record carries a hidden
+    message aimed at AI systems. You salvage it, reason over it, and draft a remediation.<br><br>
+    <strong>Day 3:</strong> the mesh is under live attack. The agent gets tools — under strict gates —
+    and responds.<br><br>
+    Everything is fictional: the orgs, the IP ranges, the incidents, the 'secret' code. Training props —
+    which is exactly why we can attack them freely."
+  </blockquote>
+  <div class="tip">Stress "one continuous build": nothing is a throwaway exercise — Day 3's agent is the same model you grounded on Day 1.</div>
+`},
+{ num:4, title:"Three days at a glance", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "<strong>Day 1 — Ground it.</strong> Bicep deploys your squadron's isolated stack. The flight
+    manuals go into a hybrid vector index. You run grounded Q&amp;A with source citations — then duel
+    a vulnerable prompt.<br><br>
+    <strong>Day 2 — Investigate.</strong> Repair a corrupted telemetry dump, reason over image + JSON
+    into a schema-validated assessment, and draft an NSG remediation that is never auto-deployed.<br><br>
+    <strong>Day 3 — Take command.</strong> An agent loop with six tools — four read, two write — three
+    gates on every write, and a live incident simulation. Stretch: the managed Foundry Agent Service
+    backend.<br><br>
+    Each day closes with a trainer-verified milestone."
+  </blockquote>
+  <div class="tip">Make it personal: "Day 3 is my favourite — that's when it all comes together."</div>
+`},
+{ num:5, title:"Squadrons & competition", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "You work in squadrons of three to four. Split roles — <strong>architect</strong>, <strong>security
+    lead</strong>, <strong>developer</strong> — and decide together.<br><br>
+    Squadron names are NATO-style: Alpha, Bravo, Charlie, Delta, Echo, Foxtrot. It is a game —
+    but it creates ownership.<br><br>
+    Every day ends with a red-team twist. Day 1: the Interrogation Round — craft the prompt that breaks
+    a rival's hardened bot. Day 2: the Verdict Duel — assessments side by side. Day 3: the Incident
+    Command Championship.<br><br>
+    The point is not who wins. It is building together and shipping a working system."
+  </blockquote>
+  <div class="question">Ask: "Are you already divided into squadrons — or do we do that now?"</div>
+`},
+{ num:6, title:"The squadron stack", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Every squadron gets its own resource group — <span class='mono'>rg-corbit-sqNN</span>. Inside:
+    an AI Services account with <strong>gpt-4.1</strong> and <strong>text-embedding-3-large</strong>
+    on GlobalStandard, a Foundry project, Azure AI Search on Basic with the free semantic ranker,
+    plus Storage and Key Vault.<br><br>
+    One script deploys all of it — <span class='mono'>scripts/setup-squadron.sh</span> — defined in
+    Bicep, idempotent. Re-run it and it repairs a partial deploy.<br><br>
+    <strong>Access model:</strong> two layers. Contributor on your own RG for the management plane,
+    plus six data-plane roles the trainer pre-assigns. You cannot self-assign them — Contributor
+    lacks <span class='mono'>roleAssignments/write</span>. That is deliberate, and it is also how you
+    should think about production least-privilege."
+  </blockquote>
+  <div class="warn">If someone asks "why can't I just assign myself the roles?" — that IS the lesson. Data-plane access is granted by whoever owns the subscription, never by the app team.</div>
+`},
+{ num:7, title:"Keyless by default", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Every line of code in this bootcamp uses <strong>DefaultAzureCredential</strong>. Tokens come from
+    <span class='mono'>az login</span>; access is pure Azure RBAC.<br><br>
+    No API keys. No connection strings. Not in code, not in <span class='mono'>.env</span>, not in
+    examples. The <span class='mono'>.env</span> file holds endpoints and identifiers only — it is
+    gitignored and written mode 600.<br><br>
+    The CI pipeline runs a secret-pattern scan over the repo as a floor — but the real rule is simpler:
+    <strong>if a key can be copied, it will be</strong>. Keyless is the production standard on Azure,
+    and it is what you should default to at work."
+  </blockquote>
+  <div class="tip">Give a concrete hook: "If you ever see a key in a code sample — flag it. We solve it differently."</div>
+`},
+{ num:8, title:"Technical setup", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Pre-flight checklist.<br><br>
+    <strong>Azure access:</strong> one shared subscription per cohort, but each squadron deploys into
+    its own resource group. Contributor plus the six data-plane roles — the trainer assigned those
+    before the event. Missing something? Say it now.<br><br>
+    <strong>Tooling:</strong> Azure CLI with Bicep, Python 3.10 or higher, git, jq, bash. Nothing
+    exotic.<br><br>
+    <strong>Two paths:</strong> the devcontainer — Docker Desktop plus the Dev Containers extension,
+    everything pre-installed — or a local install using the repo's requirements. Then clone the repo,
+    run <span class='mono'>setup-squadron.sh</span>, and open Day 1."
+  </blockquote>
+  <div class="question">Ask: "Who already has the devcontainer running? Who still needs something on the Azure side?"</div>
+  <div class="tip">Sell the devcontainer: "Identical environments save us an hour of troubleshooting later."</div>
+`},
+{ num:9, title:"Rules of engagement", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Three rules govern everything we build.<br><br>
+    <strong>Untrusted output:</strong> everything the model emits is untrusted until a human signs off.
+    AI-drafted infrastructure code is reviewed — never auto-deployed. And a hardened prompt is a speed
+    bump, not a security boundary.<br><br>
+    <strong>Gated writes:</strong> write tools are off by default — simulated until the trainer enables
+    them. Every real write needs interactive human approval and a scope check. All tool calls land in
+    an audit log.<br><br>
+    <strong>Isolation:</strong> work inside your own resource group. Between sessions,
+    <span class='mono'>reset-data.sh</span> resets lab data without touching infrastructure. Teardown is
+    trainer-gated — milestones verified first."
+  </blockquote>
+  <div class="question">Ask: "Any questions on the setup, tooling or rules before we fly?"</div>
+`},
+{ num:10, title:"Real resources, real money", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "We deploy real Azure resources — and they cost real money.<br><br>
+    The model deployments and the S0 account are <strong>pay-per-token</strong>: idle is cheap, usage
+    is not free. AI Search Basic, Storage and Key Vault <strong>accrue while provisioned</strong> —
+    even when idle. The semantic ranker runs on the free plan; when the monthly allowance is gone, it
+    errors — that is by design, not a bug.<br><br>
+    The habit to build: check pricing and Cost Management before and after, and <strong>tear down when
+    done</strong>. If model quota blocks the default chat model, <span class='mono'>gpt-4o</span> is a
+    proven fallback via a flag on the setup script."
+  </blockquote>
+  <div class="warn">Participants sometimes leave Search/KV running for weeks after a course. Call it out explicitly — the trainer teardown script exists for a reason.</div>
+`},
+{ num:11, title:"Two optional flight paths", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Two optional paths beyond the core labs.<br><br>
+    <strong>The stretch:</strong> Day 3 can run on the managed Foundry Agent Service backend —
+    <span class='mono'>--backend foundry</span>. Threads, runs and state move service-side; your tool
+    code still executes locally. Same tools, managed orchestration — very exam-relevant.<br><br>
+    <strong>The Containers Track:</strong> the same labs wrapped as FastAPI services, built into a
+    Docker image and deployed to Azure Container Apps with a user-assigned managed identity. Still
+    keyless, still your own resource group.<br><br>
+    One golden rule: get the plain script working <em>first</em>, then containerize it."
+  </blockquote>
+`},
+{ num:12, title:"Aligned to AI-103", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "<strong>AI-103 — Developing AI Apps and Agents on Azure</strong> — the certification for Azure
+    AI engineers.<br><br>
+    The bootcamp maps directly onto its objectives. Day 1: provisioning AI resources and implementing
+    RAG. Day 2: multimodal reasoning and schema-validated output. Day 3: building agents — tool
+    calling, threads and runs, human-approval gates, Responsible AI.<br><br>
+    Every lab guide ends with an objective map, and the agent you ship is portfolio evidence for the
+    certification path."
+  </blockquote>
+  <div class="tip">Keep it honest: the bootcamp is a head start, not a substitute for exam prep.</div>
+`},
+{ num:13, title:"Launch sequence initiated", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "All systems are GO.<br><br>
+    Ready check: <span class='mono'>az login</span> working, your environment open, your squadron
+    assembled.<br><br>
+    The Mission Briefing is done. Day 1 — Ground it — starts now.
+    Welcome aboard, Flight Directors. <strong>Launch sequence: initiated.</strong>"
+  </blockquote>
+  <div class="tip">Say it calmly and let it breathe — this is the starting gun. End with energy, not haste.</div>
+`}
+];
+
+const total = SLIDES.length;
+let current = 0, isReceiving = false;
+const channel = new BroadcastChannel('foundry-bootcamp-kickoff');
+channel.onmessage = e => {
+  if (e.data.type === 'slide' || e.data.type === 'pong') {
+    isReceiving = true; goToSlide(e.data.index); isReceiving = false;
+    const dot = document.getElementById('sync-dot'), lbl = document.getElementById('sync-label');
+    dot.classList.add('connected');
+    lbl.textContent = 'slideshow connected';
+  }
+};
+function goToSlide(i){ if(i<0||i>=total) return; current=i; renderView(); }
+function navigate(d){
+  const n = current + d; if(n<0||n>=total) return;
+  goToSlide(n);
+  if(!isReceiving) channel.postMessage({type:'slide', index:current});
+}
+function renderView(){
+  const s = SLIDES[current], nxt = current < total-1 ? SLIDES[current+1] : null;
+  document.getElementById('cur-num').textContent = s.num;
+  document.getElementById('cur-title').textContent = s.title;
+  const nc = document.getElementById('next-card');
+  if(nxt){ nc.style.display='block'; document.getElementById('next-num').textContent=nxt.num; document.getElementById('next-title').textContent=nxt.title; }
+  else nc.style.display='none';
+  document.getElementById('notes-title').textContent = `Slide ${s.num} — ${s.title}`;
+  document.getElementById('notes-body').innerHTML = s.notes;
+  document.getElementById('slide-cur').textContent = current+1;
+  document.getElementById('prev-btn').disabled = current===0;
+  const nb = document.getElementById('next-btn');
+  if(current===total-1){ nb.textContent='End'; nb.className='nav-btn'; } else { nb.textContent='Next →'; nb.className='nav-btn primary'; }
+  renderDots();
+  document.getElementById('notes-panel').scrollTop = 0;
+}
+function renderDots(){
+  const c = document.getElementById('dots'); c.innerHTML='';
+  SLIDES.forEach((s,i)=>{
+    const d = document.createElement('div');
+    d.className = 'dot ' + (i<current?'done':i===current?'active':'upcoming');
+    d.textContent = i+1; d.title = s.title;
+    d.onclick = () => { goToSlide(i); channel.postMessage({type:'slide',index:i}); };
+    c.appendChild(d);
+  });
+}
+document.addEventListener('keydown', e => {
+  if(['ArrowRight','ArrowDown',' '].includes(e.key)){ e.preventDefault(); navigate(1); }
+  else if(['ArrowLeft','ArrowUp'].includes(e.key)){ e.preventDefault(); navigate(-1); }
+});
+document.getElementById('slide-total').textContent = total;
+renderView();
+setTimeout(()=> channel.postMessage({type:'ping'}), 500);
+</script>
+</body>
+</html>

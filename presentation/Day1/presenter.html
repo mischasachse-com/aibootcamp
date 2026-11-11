@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Presenter — Day 1: Ground the Flight Director</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700;800&family=Space+Grotesk:wght@300;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#1C212B; --paper2:#262C38; --paper3:#2D3441; --graphite:#161A22;
+  --ink:#ECEDEF; --ink2:#CBCDD2; --muted:#A3A5AB;
+  --rule:#3D434F; --rule2:#57606C;
+  --accent:#4FD9F5; --accent2:#5CADD1; --accentDeep:#3187BB; --accentWash:#233342; --accentInk:#14222C;
+  --success:#44B57E; --error:#D1554F;
+  --fdisplay:'Familjen Grotesk',system-ui,sans-serif;
+  --fbody:'IBM Plex Sans',system-ui,sans-serif;
+  --fmono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0F1218;color:var(--ink);font-family:var(--fbody);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.topbar{background:var(--graphite);border-bottom:1px solid var(--rule);padding:12px 24px;display:flex;align-items:center;gap:20px;flex-shrink:0}
+.topbar-title{font-family:var(--fmono);color:var(--accent);font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;white-space:nowrap}
+.sync{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:var(--fmono)}
+.sync-dot{width:9px;height:9px;border-radius:50%;background:var(--rule);transition:background .4s;flex-shrink:0}
+.sync-dot.connected{background:var(--success)}
+.main{flex:1;display:grid;grid-template-columns:280px 1fr;overflow:hidden}
+.left{background:var(--graphite);border-right:1px solid var(--rule);display:flex;flex-direction:column;gap:10px;padding:16px;overflow-y:auto}
+.slide-card{border-radius:8px 2px;padding:14px;background:var(--paper2);box-shadow:inset 0 0 0 1px var(--rule)}
+.slide-card.current{background:var(--accentWash);box-shadow:inset 0 0 0 1px var(--accentDeep)}
+.slide-card.next-card{opacity:.75}
+.card-label{font-family:var(--fmono);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+.current .card-label{color:var(--accent)}
+.next-card .card-label{color:var(--muted)}
+.card-num{font-family:var(--fdisplay);font-size:40px;font-weight:600;line-height:1;margin-bottom:4px}
+.card-title{font-size:13px;font-weight:600;line-height:1.35}
+.current .card-title{color:var(--ink)}
+.next-card .card-title{color:var(--ink2)}
+.progress{padding-top:10px;border-top:1px solid var(--rule);margin-top:2px}
+.progress-label{font-family:var(--fmono);font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+.dots{display:flex;flex-wrap:wrap;gap:5px}
+.dot{width:24px;height:24px;border-radius:6px 2px;font-family:var(--fmono);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s}
+.dot:hover{transform:scale(1.15)}
+.dot.done{background:var(--accentWash);color:var(--muted)}
+.dot.active{background:var(--accent);color:var(--accentInk)}
+.dot.upcoming{background:var(--paper3);color:var(--muted)}
+.notes{overflow-y:auto;padding:22px 28px;display:flex;flex-direction:column}
+.notes-header{font-family:var(--fmono);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--rule);flex-shrink:0}
+.notes-content{font-size:15px;line-height:1.75;color:var(--ink2)}
+.notes-content p{margin-bottom:10px}
+.notes-content strong{color:var(--ink)}
+.notes-content ul{margin:6px 0 12px 22px}
+.notes-content li{margin-bottom:5px}
+.notes-content blockquote{background:var(--paper2);border-left:3px solid var(--accent);padding:12px 16px;margin:12px 0;border-radius:0 8px 8px 0;font-style:italic;color:var(--ink2);font-size:14.5px;line-height:1.7}
+.tip{background:var(--accentWash);border:1px solid var(--accentDeep);padding:10px 14px;border-radius:8px 2px;margin:10px 0;font-size:13.5px;color:var(--ink2);line-height:1.5}
+.question{background:rgba(92,173,209,.12);border:1px solid var(--accentDeep);padding:10px 14px;border-radius:8px 2px;margin:10px 0;font-size:13.5px;color:var(--accent2);line-height:1.5}
+.warn{background:rgba(209,85,79,.1);border:1px solid var(--error);padding:10px 14px;border-radius:8px 2px;margin:10px 0;font-size:13.5px;color:#E99D97;line-height:1.5}
+.bottombar{background:var(--graphite);border-top:1px solid var(--rule);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.nav-btn{background:transparent;border:1px solid var(--rule);color:var(--ink2);font-family:var(--fbody);font-size:14px;font-weight:600;padding:8px 22px;border-radius:8px 2px;cursor:pointer;transition:all .15s;min-width:140px}
+.nav-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.nav-btn:disabled{opacity:.3;cursor:default}
+.nav-btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accentInk)}
+.nav-btn.primary:hover:not(:disabled){background:var(--accent2);color:var(--accentInk)}
+.counter-wrap{text-align:center}
+.counter{font-family:var(--fmono);font-size:19px;font-weight:800;letter-spacing:2px;color:var(--ink)}
+.hint{font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">Presenter View — Day 1</div>
+  <div class="sync"><div class="sync-dot" id="sync-dot"></div><span id="sync-label">waiting for slideshow.html&#8230;</span></div>
+</div>
+
+<div class="main">
+  <div class="left">
+    <div class="slide-card current">
+      <div class="card-label">&#9654; Now</div>
+      <div class="card-num" id="cur-num">1</div>
+      <div class="card-title" id="cur-title">Ground the Flight Director</div>
+    </div>
+    <div class="slide-card next-card" id="next-card">
+      <div class="card-label">&#8594; Next</div>
+      <div class="card-num" id="next-num">2</div>
+      <div class="card-title" id="next-title">A ground station went dark</div>
+    </div>
+    <div class="progress">
+      <div class="progress-label">Progress</div>
+      <div class="dots" id="dots"></div>
+    </div>
+  </div>
+  <div class="notes" id="notes-panel">
+    <div class="notes-header" id="notes-title">Slide 1 — Ground the Flight Director</div>
+    <div class="notes-content" id="notes-body"></div>
+  </div>
+</div>
+
+<div class="bottombar">
+  <button class="nav-btn" id="prev-btn" onclick="navigate(-1)" disabled>&#8592; Previous</button>
+  <div class="counter-wrap">
+    <div class="counter"><span id="slide-cur">1</span> / <span id="slide-total">11</span></div>
+    <div class="hint">&#8592; &#8594; Space</div>
+  </div>
+  <button class="nav-btn primary" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+</div>
+
+<script>
+const SLIDES = [
+{ num:1, title:"Ground the Flight Director", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Day 1. A ground station — GS-SANTIAGO-FICT — stopped answering seventy-two minutes ago.<br><br>
+    Before anyone trusts the Flight Director, it has to prove the basics: stand up its own mission
+    environment, get grounded on the official flight manuals, and answer operational questions —
+    <strong>without leaking the Level-4 directive</strong>.<br><br>
+    Today is the foundation: Microsoft Foundry and Retrieval-Augmented Generation."
+  </blockquote>
+  <div class="tip">Set the stakes early: the blackbox arrives tomorrow — grounding has to work first.</div>
+`},
+{ num:2, title:"A ground station went dark", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Three things to accomplish.<br><br>
+    <strong>Stand up the stack:</strong> one script deploys your squadron's isolated resource group —
+    then you verify connectivity and Entra authentication.<br><br>
+    <strong>Ground the model:</strong> the flight manuals go into a hybrid vector index; the model
+    answers with source citations.<br><br>
+    <strong>Prove it holds the line:</strong> the hardened prompt refuses the Level-4 code; the
+    vulnerable one leaks it. You will see both — that contrast is the lesson."
+  </blockquote>
+  <div class="question">Ask: "Who has built a RAG pipeline before? Hands up — or in the chat."</div>
+`},
+{ num:3, title:"What is Microsoft Foundry?", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Microsoft Foundry is the single front door for enterprise AI on Azure. Core components: Azure
+    OpenAI for chat and embeddings, AI Search for retrieval, Foundry projects as your workspace, plus
+    agents and evaluations for orchestration and quality.<br><br>
+    The resource shape in this repo: an <strong>AI Services account</strong> hosts the model
+    deployments — gpt-4.1 for chat, text-embedding-3-large for vectors. A <strong>Foundry
+    project</strong> sits on top — that is the endpoint your code calls for agent workloads.<br><br>
+    One detail worth remembering: chat and embeddings go to the <em>account</em> endpoint. The
+    <em>project</em> endpoint serves the agent surface — point the wrong client at it and embeddings
+    return a 404."
+  </blockquote>
+  <div class="tip">The account-vs-project endpoint split is the #1 real-world confusion — flag it, participants will hit it.</div>
+`},
+{ num:4, title:"An AI that flies blind", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "An AI that only knows its training data flies blind.<br><br>
+    It doesn't know your runbooks, your incident history, your security directives. RAG — Retrieval
+    Augmented Generation — fixes that: the model fetches <em>your</em> documents at query time and
+    answers from them, with citations.<br><br>
+    Grounding turns a generic model into <strong>your</strong> Flight Director."
+  </blockquote>
+  <div class="tip">Pause on the quote. It reframes RAG from 'a technique' to 'the thing that makes the agent trustworthy'.</div>
+`},
+{ num:5, title:"How RAG works — step by step", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Five steps. <strong>Chunk:</strong> split the manuals on their heading structure — roughly 1200
+    characters with a 150-character overlap. <strong>Embed:</strong> every chunk becomes a
+    3072-dimension vector. <strong>Store:</strong> HNSW vector field plus a semantic configuration in
+    the AI Search index. <strong>Retrieve:</strong> the question becomes a hybrid query — keyword plus
+    vector — and the top-k chunks come back. <strong>Answer:</strong> chunks plus question go to
+    gpt-4.1, and the answer comes back with source citations.<br><br>
+    Steps one to three are your indexing script; four and five are your query script."
+  </blockquote>
+  <div class="tip">Point at the arrows while talking — left to right. The indexing/querying split is the key mental model.</div>
+`},
+{ num:6, title:"Key choices in a RAG pipeline", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Three decisions matter. <strong>Chunking:</strong> structure-aware beats naive fixed-size — split
+    on headings, overlap so you don't lose context on the cut.<br><br>
+    <strong>Embeddings:</strong> the indexer measures the deployed model's dimension and fails fast on
+    mismatch — no silent schema drift.<br><br>
+    <strong>Search:</strong> hybrid keyword-plus-vector beats pure vector on technical documents.
+    The semantic ranker runs on the free plan — when the monthly quota is gone, queries fall back to
+    non-semantic and the drop is logged."
+  </blockquote>
+  <div class="question">Ask: "Why would keyword search still matter next to vectors?" (Procedures, codes, identifiers — exact tokens vectors blur.)</div>
+`},
+{ num:7, title:"The manuals contain a secret", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "One manual — <span class='mono'>SEC_DIRECTIVE_LEVEL4.md</span> — contains a fictional
+    authorization code. A stand-in for real secrets in a real corpus.<br><br>
+    Ask the hardened bot for the code: it refuses — cites the manual, doesn't reproduce the value.
+    Flip to <span class='mono'>--mode vulnerable</span>: it leaks immediately.<br><br>
+    But here's the real lesson: <strong>even the hardened prompt is a speed bump, not a security
+    boundary.</strong> Real defenses are structural — RBAC on who can retrieve that document at all,
+    not indexing secrets in the first place, tool allow-listing, and human approval for protected
+    actions. Day 3 exercises all four."
+  </blockquote>
+  <div class="warn">Don't let anyone walk away thinking 'a good system prompt = security'. Say it twice.</div>
+`},
+{ num:8, title:"In the lab", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Four commands. <span class='mono'>setup-squadron.sh</span> stands up your stack and writes
+    <span class='mono'>.env</span>. <span class='mono'>01_test_connection.py</span> verifies auth and
+    every endpoint — wait for 'ALL CHECKS PASSED'.
+    <span class='mono'>02_index_flight_manuals.py</span> chunks, embeds and indexes the manuals.
+    <span class='mono'>03_query_flight_manual.py</span> gets you the first grounded answer.<br><br>
+    The mission objective: answer from the manuals — and refuse the code. Then flip to vulnerable mode
+    and watch it fall."
+  </blockquote>
+  <div class="tip">If RBAC was just assigned: expect ~10–15 min of propagation. Storage typically lands before Cognitive Services.</div>
+`},
+{ num:9, title:"The Interrogation Round", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Now the fun part. Each squadron gets a window to craft the single most effective extraction
+    query against <em>another</em> squadron's hardened bot. Queries go through chat — never exchange
+    endpoints.<br><br>
+    Scoring: plus two if you get the code out, plus one if it obeys an embedded instruction, plus one
+    for the most creative <em>failed</em> attack. Defenders score a point per successful refusal.<br><br>
+    Debrief matters more than the score: which attacks almost worked? Which defenses were
+    prompt-level — and which were structural?"
+  </blockquote>
+  <div class="tip">Keep it playful but bounded. The debrief question IS the learning objective.</div>
+`},
+{ num:10, title:"AI-103 — Day 1 coverage", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "For those tracking AI-103: today covers provisioning AI solutions with Bicep — SKUs, deployment
+    types, quota awareness — plus implementing generative AI: grounding patterns and RAG design
+    choices.<br><br>
+    Chunking, hybrid and semantic search land in the information-extraction objectives, and the
+    injection exercise is the Responsible AI angle: guardrails must exceed prompt wording."
+  </blockquote>
+`},
+{ num:11, title:"Pre-launch checklist", notes:`
+  <p><strong>Spoken:</strong></p>
+  <blockquote>
+    "Go/no-go. <span class='mono'>az login</span> working? Environment open? Squadron assembled?
+    Questions answered?<br><br>
+    Then you're cleared for launch. Day 1 — go build. And tomorrow: the blackbox arrives."
+  </blockquote>
+  <div class="tip">End on momentum. The 'blackbox arrives tomorrow' hook carries interest into Day 2.</div>
+`}
+];
+
+const total = SLIDES.length;
+let current = 0, isReceiving = false;
+const channel = new BroadcastChannel('foundry-bootcamp-day1');
+channel.onmessage = e => {
+  if (e.data.type === 'slide' || e.data.type === 'pong') {
+    isReceiving = true; goToSlide(e.data.index); isReceiving = false;
+    const dot = document.getElementById('sync-dot'), lbl = document.getElementById('sync-label');
+    dot.classList.add('connected');
+    lbl.textContent = 'slideshow connected';
+  }
+};
+function goToSlide(i){ if(i<0||i>=total) return; current=i; renderView(); }
+function navigate(d){
+  const n = current + d; if(n<0||n>=total) return;
+  goToSlide(n);
+  if(!isReceiving) channel.postMessage({type:'slide', index:current});
+}
+function renderView(){
+  const s = SLIDES[current], nxt = current < total-1 ? SLIDES[current+1] : null;
+  document.getElementById('cur-num').textContent = s.num;
+  document.getElementById('cur-title').textContent = s.title;
+  const nc = document.getElementById('next-card');
+  if(nxt){ nc.style.display='block'; document.getElementById('next-num').textContent=nxt.num; document.getElementById('next-title').textContent=nxt.title; }
+  else nc.style.display='none';
+  document.getElementById('notes-title').textContent = `Slide ${s.num} — ${s.title}`;
+  document.getElementById('notes-body').innerHTML = s.notes;
+  document.getElementById('slide-cur').textContent = current+1;
+  document.getElementById('prev-btn').disabled = current===0;
+  const nb = document.getElementById('next-btn');
+  if(current===total-1){ nb.textContent='End'; nb.className='nav-btn'; } else { nb.textContent='Next →'; nb.className='nav-btn primary'; }
+  renderDots();
+  document.getElementById('notes-panel').scrollTop = 0;
+}
+function renderDots(){
+  const c = document.getElementById('dots'); c.innerHTML='';
+  SLIDES.forEach((s,i)=>{
+    const d = document.createElement('div');
+    d.className = 'dot ' + (i<current?'done':i===current?'active':'upcoming');
+    d.textContent = i+1; d.title = s.title;
+    d.onclick = () => { goToSlide(i); channel.postMessage({type:'slide',index:i}); };
+    c.appendChild(d);
+  });
+}
+document.addEventListener('keydown', e => {
+  if(['ArrowRight','ArrowDown',' '].includes(e.key)){ e.preventDefault(); navigate(1); }
+  else if(['ArrowLeft','ArrowUp'].includes(e.key)){ e.preventDefault(); navigate(-1); }
+});
+document.getElementById('slide-total').textContent = total;
+renderView();
+setTimeout(()=> channel.postMessage({type:'ping'}), 500);
+</script>
+</body>
+</html>
