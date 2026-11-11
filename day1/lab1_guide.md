@@ -20,7 +20,7 @@ the Retrieval-Augmented pipeline before Day 2's blackbox investigation begins.
 ## Architecture & Objectives
 
 | Component | Role in this lab |
-|---|---|
+| --- | --- |
 | Azure AI Services (`AIServices`, S0) | Foundry resource hosting your model deployments |
 | Model deployments (`gpt-4.1`, `text-embedding-3-large`, `GlobalStandard`) | Chat + embeddings, pay-per-token |
 | Foundry project (`prj-corbit-<NN>`) | Endpoint your code talks to (`FOUNDRY_PROJECT_ENDPOINT`) |

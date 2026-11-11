@@ -62,7 +62,7 @@ adds, participant effort, and risks.
 ## Beyond the bootcamp (not built — ideas only)
 
 | Idea | Why | Effort |
-|---|---|---|
+| --- | --- | --- |
 | Indexing as a job container (`02_index_flight_manuals`) | one-shot ingestion job in ACA Jobs | medium |
 | Evaluation harness container | batch-run prompts, emit scores | medium |
 | Foundry Agent Service backend behind the same API | managed threads/runs comparison | high |

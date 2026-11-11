@@ -33,7 +33,7 @@ under live fire (Day 3).
 ## Prerequisites
 
 | Requirement | Notes |
-|---|---|
+| --- | --- |
 | Azure subscription | shared across squadrons; each squadron deploys into its own RG |
 | Python ≥ 3.10 | devcontainer uses 3.12 (azure-ai-projects 2.x requires ≥3.10); on Windows Git Bash `python3` may be missing or a Store stub — the scripts auto-detect `python`/`py`, but `python` must work |
 | Azure CLI + Bicep | `az login`; `az bicep install` (auto-installed by setup script) |
@@ -48,7 +48,7 @@ there is no cloud-hosted Codespaces-style flow.
 ## Required tooling by editor (universal)
 
 | Capability | VS Code / Windsurf extension | Other editors |
-|---|---|---|
+| --- | --- | --- |
 | Python + IntelliSense | `ms-python.python`, `ms-python.vscode-pylance` | PyCharm, pylsp, basedpyright |
 | Bicep | `ms-azuretools.vscode-bicep` | Bicep language server |
 | EditorConfig | `editorconfig.editorconfig` | built into most editors via `.editorconfig` |
@@ -83,7 +83,7 @@ AI-103 objective map, and async/online notes.
 ## Session Schedule
 
 | Day | Sessions | Focus |
-|---|---|---|
+| --- | --- | --- |
 | Day 1 | 12:00–13:00 & 18:00–20:00 | Provision squadron stack · index manuals · grounded Q&A · prompt-injection duel |
 | Day 2 | 12:00–13:00 & 18:00–20:00 | Corrupted blackbox salvage · multimodal schema-validated assessment · remediation drafting |
 | Day 3 | 12:00–13:00 & 18:00–20:00 | Agent loop + gated tools · live incident simulation · Foundry Agent Service stretch |
@@ -165,7 +165,7 @@ IDs). See `trainer/members.csv.example`. Admins who DO have
 **Lifecycle modes** — pick one per event:
 
 | | Mode A — keep infra (recommended) | Mode B — rebuild between lessons |
-|---|---|---|
+| --- | --- | --- |
 | Ops | `setup` once → `reset-data.sh` between days | `teardown-all.sh` + `setup` daily |
 | Idle cost | Search Basic/Storage/KV accrue; models are per-token | near zero between sessions |
 | Risk | none mid-event | model capacity/provisioning may not finish before a session — **not guaranteed**; always verify with a pre-session smoke test |
@@ -226,7 +226,7 @@ Azure Repos — not GitHub. One-time manual prerequisites:
 ## Verified versions (as of 2026-09-30 — re-verify before each delivery)
 
 | Item | Value |
-|---|---|
+| --- | --- |
 | `Microsoft.Search/searchServices` | `2025-05-01` (latest stable) |
 | `Microsoft.CognitiveServices/accounts(+projects,+deployments)` | `2025-06-01` / `2025-09-01` (projects) |
 | `Microsoft.Storage/storageAccounts` | `2025-01-01` |
@@ -270,7 +270,7 @@ Re-verify live: `az cognitiveservices account list-models -n <acct> -g <rg>`.
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
-|---|---|---|
+| --- | --- | --- |
 | `CredentialUnavailableError` / 401 | not logged in / wrong tenant | `az login --tenant <id>`; `az account show` |
 | 403 on AI or Search calls | missing data-plane roles | ask the **trainer** — only they can assign (`trainer/assign-squadron-access.sh`); check `az role assignment list` on your RG |
 | 401 right after deploy, roles confirmed assigned | RBAC propagation lag (measured: ~10–15 min; Cognitive Services slowest) | wait and retry; verify Storage first — it typically propagates earlier |

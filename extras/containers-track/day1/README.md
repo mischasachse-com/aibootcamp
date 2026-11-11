@@ -4,7 +4,7 @@ The Day 1 lab's grounded query bot (`day1/src/03_query_flight_manual.py`)
 served over HTTP — same prompts, same hybrid retrieval, same chat call.
 
 | Endpoint | Purpose | Azure credentials? |
-|---|---|---|
+| --- | --- | --- |
 | `GET /health` | liveness (image health check) | no |
 | `POST /chat` | grounded Q&A over the flight-manuals index | **yes** (Entra) |
 
@@ -90,7 +90,7 @@ assigns them or prints the commands for your team lead.
 ## Troubleshooting
 
 | Symptom | Fix |
-|---|---|
+| --- | --- |
 | `401`/`CredentialUnavailableError` locally | `az login` (the app runs outside the container for local cred tests) |
 | `403` in Azure | MI missing data-plane roles — see deploy output |
 | `404` "no context retrieved" | run the standard lab's indexing step first |

@@ -5,7 +5,7 @@ plus the gated tool catalogue (`day3/src/02_custom_security_tools.py`) —
 behind HTTP. The Foundry Agent Service stretch backend is out of scope.
 
 | Endpoint | Purpose | Azure credentials? |
-|---|---|---|
+| --- | --- | --- |
 | `GET /health` | liveness | no |
 | `POST /incident` | run the agent loop on `{"prompt": "...", "alert_id": "INC-2026-0001"?}` | yes |
 | `POST /simulate` | replay every `data/incidents/*.json` — like `--all`. **Long-running** (minutes) | yes |
@@ -122,7 +122,7 @@ AGENT_MAX_ITER=8        HEADLESS=true   # ENABLE_WRITE_TOOLS stays unset
 ## Troubleshooting
 
 | Symptom | Fix |
-|---|---|
+| --- | --- |
 | `/simulate` seems stuck | expected — one agent run per incident, minutes each; check `AGENT_TIMEOUT_SECONDS` per run |
 | `401`/`403` | same RBAC remediation as Day 1 |
 | empty `tool_calls` | model didn't call tools — check `CHAT_MODEL_DEPLOYMENT` and the system prompt path |

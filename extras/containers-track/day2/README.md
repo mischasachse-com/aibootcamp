@@ -3,7 +3,7 @@
 The full Day 2 forensic pipeline behind HTTP:
 
 | Endpoint | Wraps | Azure credentials? |
-|---|---|---|
+| --- | --- | --- |
 | `GET /health` | — | no |
 | `POST /parse` | `01_parse_blackbox.py` — tolerant JSON repair + anomaly detection + NSG audit | **no** |
 | `POST /assess` | `02_multimodal_analysis.py` — analysis JSON + topology PNG → schema-validated `MissionAssessment` | yes |
@@ -88,7 +88,7 @@ the commands for your team lead); no new roles are required.
 ## Troubleshooting
 
 | Symptom | Fix |
-|---|---|
+| --- | --- |
 | `404` "telemetry file not found" | `BLACKBOX_DATA_PATH` wrong, or the mount didn't land — check the path inside the container |
 | `422`/validation error on `/assess` | model drifted from the `MissionAssessment` schema — that's the lab's point; retry or re-run `/parse` |
 | `401`/`403` on `/assess`, `/remediation` | credential/RBAC — same remediation as Day 1 |

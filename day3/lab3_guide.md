@@ -20,7 +20,7 @@ act?" but "**should** it — and how would we know it stayed inside its lane?"
 ## Architecture & Objectives
 
 | Component | Role in this lab |
-|---|---|
+| --- | --- |
 | `02_custom_security_tools.py` | Tool catalogue: 4 read tools + 2 write tools; every call audited to `day3/audit_log.jsonl` |
 | `01_flight_director_agent.py` | The agent loop — manual backend (core) + Foundry Agent Service backend (stretch) |
 | `03_simulate_live_incident.py` | Replays the fictional incident payloads through the loop |

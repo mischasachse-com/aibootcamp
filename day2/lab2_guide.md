@@ -20,7 +20,7 @@ off. That distinction is the entire point of today.
 ## Architecture & Objectives
 
 | Component | Role in this lab |
-|---|---|
+| --- | --- |
 | `01_parse_blackbox.py` | Tolerant JSON repair + threshold anomaly detection (pure Python — no Azure) |
 | `02_multimodal_analysis.py` | Vision + JSON → **schema-validated** assessment (Pydantic → `json_schema` response format) |
 | `03_generate_remediation_bicep.py` | AI-drafted NSG remediation → `day2/generated/` (gitignored), optional `az bicep build` check, never deployed |

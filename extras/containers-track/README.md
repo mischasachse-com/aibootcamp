@@ -21,7 +21,7 @@ it if your squadron joined the Containers path; otherwise ignore it.
 ## Prerequisites
 
 | Requirement | Notes |
-|---|---|
+| --- | --- |
 | Completed standard lab for the day | `.env` from `scripts/setup-squadron.sh`, Day 1 index populated, etc. |
 | Docker | Docker Desktop / any Docker daemon for local build & run |
 | Azure CLI + `az login` | for the Container Apps deploy step |
@@ -34,7 +34,7 @@ devcontainer when prompted — it is scoped to this track.
 ## Support model
 
 | Question about | Ask |
-|---|---|
+| --- | --- |
 | Dockerfiles, ports, image builds, Container Apps, registries | **Containers team lead** |
 | Prompts, RAG, agents, lab goals, Azure AI resources | **Bootcamp trainer** |
 
@@ -59,7 +59,7 @@ extras/containers-track/
 ## Days overview
 
 | Day | Status | API |
-|---|---|---|
+| --- | --- | --- |
 | Day 1 | ✅ available | `POST /chat` — grounded Q&A over the flight-manuals index (wraps `day1/src/03_query_flight_manual.py`) |
 | Day 2 | ✅ available | `POST /parse` · `/assess` · `/remediation` — blackbox forensics pipeline (wraps `day2/src/01–03`) |
 | Day 3 | ✅ available | `POST /incident` · `/simulate` — Flight Director agent loop, manual backend (wraps `day3/src/01` + tools) |
@@ -100,7 +100,7 @@ Container App (external ingress, scale-to-zero). It then attempts three
 role assignments for the managed identity:
 
 | Role | On | Why |
-|---|---|---|
+| --- | --- | --- |
 | `AcrPull` | the ACR | image pull without admin credentials |
 | `Cognitive Services OpenAI User` | the AI Services (Foundry) account | chat + embeddings data plane ([docs](https://learn.microsoft.com/azure/ai-foundry/openai/how-to/managed-identity)) |
 | `Search Index Data Reader` | the AI Search service | index queries ([docs](https://learn.microsoft.com/azure/search/search-security-rbac)) |
@@ -140,7 +140,7 @@ charges while provisioned — tear down when done.
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
-|---|---|---|
+| --- | --- | --- |
 | `docker build` can't find the Dockerfile | wrong context | run from the **repo root** with `-f extras/containers-track/shared/Dockerfile` |
 | `/health` unreachable locally | port mapping | `docker run -p 8000:8000` and curl `http://localhost:8000/health` |
 | 401 on `/chat` etc. in Container Apps | missing RBAC or propagation delay | check the printed role-assignment commands ran; wait a few minutes |
