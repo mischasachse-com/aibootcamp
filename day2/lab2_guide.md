@@ -151,7 +151,7 @@ Squadrons compete on assessment quality:
 - **Computer vision / multimodal**: image + text reasoning over a single
   request; vision-capable deployment selection.
 - **Structured output**: JSON Schema-constrained responses (`response_format`)
-  + Pydantic validation — the exam-relevant "schema-validated output" pattern.
+  plus Pydantic validation — the exam-relevant "schema-validated output" pattern.
 - **Information extraction**: anomaly extraction over semi-structured logs.
 - **Responsible AI & security**: treating model output as untrusted,
   validation gates, embedded-injection handling, no auto-deployed IaC.
