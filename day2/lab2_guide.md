@@ -1,6 +1,6 @@
 # Lab 2 — The Blackbox Investigation
 
-> Project Critical Orbit · Day 2 · Sessions 12:00–13:00 and 18:00–20:00
+> Project Critical Orbit · Day 2
 
 ---
 
@@ -159,7 +159,7 @@ Squadrons compete on assessment quality:
 
 ## Async / Online Participant Notes
 
-- Step 1 is **fully offline** — perfect for the lunch session or if your
+- Step 1 is **fully offline** — a good fit for a shorter session or if your
   Azure quota lags. Steps 2–3 need the deployed stack from Day 1.
 - Checkpoints: `analysis written`, `mission_assessment.json written`,
   `remediation snippet written` + review checklist complete. If a checkpoint

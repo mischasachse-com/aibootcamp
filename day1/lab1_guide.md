@@ -1,6 +1,6 @@
 # Lab 1 — Bring the Flight Director Online
 
-> Project Critical Orbit · Day 1 · Sessions 12:00–13:00 and 18:00–20:00
+> Project Critical Orbit · Day 1
 
 ---
 
@@ -205,9 +205,9 @@ Maps to *Developing AI Apps and Agents on Azure* objectives:
 - **Following the recording?** Pause after each `Checkpoint ✅` and confirm
   you see the equivalent output. The checkpoints are the only reliable way to
   know you are on track — do not skip ahead past a failed step.
-- **Timing**: Steps 0–2 fit the 12:00 session (~45 min of real work). Steps
-  3–5 + the Red-Team twist fit the evening session. Async participants can
-  split them across days — `scripts/reset-data.sh` resets lab state if you
+- **Timing**: Steps 0–2 are the shorter half of the lab; steps 3–5 + the
+  Red-Team twist are the longer half. Async participants can split them
+  across sessions — `scripts/reset-data.sh` resets lab state if you
   need a clean restart.
 - **Online squadrons**: run `setup-squadron.sh` yourself; screen-share in your
   squadron channel during Step 5 so the whole team sees the leak happen.

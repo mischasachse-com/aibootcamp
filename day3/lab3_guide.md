@@ -1,6 +1,6 @@
 # Lab 3 — The Flight Director Takes Command
 
-> Project Critical Orbit · Day 3 · Sessions 12:00–13:00 and 18:00–20:00
+> Project Critical Orbit · Day 3
 
 ---
 

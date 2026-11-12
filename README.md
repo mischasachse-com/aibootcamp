@@ -47,7 +47,7 @@ there is no cloud-hosted Codespaces-style flow.
 
 ## Required tooling by editor (universal)
 
-| Capability | VS Code / Windsurf extension | Other editors |
+| Capability | VS Code / Devin extension | Other editors |
 | --- | --- | --- |
 | Python + IntelliSense | `ms-python.python`, `ms-python.vscode-pylance` | PyCharm, pylsp, basedpyright |
 | Bicep | `ms-azuretools.vscode-bicep` | Bicep language server |
@@ -79,14 +79,6 @@ cd day1 && python src/01_test_connection.py
 Follow `day1/lab1_guide.md` → `day2/lab2_guide.md` → `day3/lab3_guide.md`.
 Each guide carries checkpoints, illustrative outputs, a competition twist, an
 AI-103 objective map, and async/online notes.
-
-## Session Schedule
-
-| Day | Sessions | Focus |
-| --- | --- | --- |
-| Day 1 | 12:00–13:00 & 18:00–20:00 | Provision squadron stack · index manuals · grounded Q&A · prompt-injection duel |
-| Day 2 | 12:00–13:00 & 18:00–20:00 | Corrupted blackbox salvage · multimodal schema-validated assessment · remediation drafting |
-| Day 3 | 12:00–13:00 & 18:00–20:00 | Agent loop + gated tools · live incident simulation · Foundry Agent Service stretch |
 
 Mixed in-person/online: every guide has **checkpoints** and an **Async/Online
 Participant Notes** section. Recordings support later review; they are not a
